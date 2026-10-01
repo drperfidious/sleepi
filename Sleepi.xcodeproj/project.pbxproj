@@ -100,11 +100,11 @@
 /* Begin PBXFileReference section */
 		011FCDCF00D200393F37D38E /* SleepiWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepiWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		133F3CA2869B5E556AC426B9 /* SleepActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepActivityAttributes.swift; sourceTree = "<group>"; };
-		190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		35AF1E7C94A487C5886E4305 /* SleepiWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepiWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepiApp.swift; sourceTree = "<group>"; };
-		4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SleepiWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		6B37A2054AF53E223C6C9AD8 /* Sleepi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepiWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B37A2054AF53E223C6C9AD8 /* Sleepi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sleepi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A9A8E9C26A1A098C396ECDD /* iOSAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = iOSAssets.xcassets; sourceTree = "<group>"; };
 		B79EB49753CB44AACA4B7575 /* WatchAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WatchAssets.xcassets; sourceTree = "<group>"; };
 		BD55105A78000F8C5CA8CE96 /* WatchPilot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPilot.swift; sourceTree = "<group>"; };
@@ -343,19 +343,15 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					3C261ACF0DF7909F5EF00F3A = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					7823D58850AFB2FFEE2B036E = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					972AEBDC9E446221D1331123 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					A6AA8321A6A9C237E3C0CB96 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -493,6 +489,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/Sleepi.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/iOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -579,6 +576,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/WatchWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -598,6 +596,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/Sleepi.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/iOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -615,6 +614,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Widgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -632,6 +632,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Watch-Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch;
 				SDKROOT = watchos;
@@ -644,6 +645,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Widgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -661,6 +663,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/WatchWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -678,6 +681,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Watch-Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch;
 				SDKROOT = watchos;
