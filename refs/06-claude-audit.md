@@ -56,7 +56,7 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 - **Watch:** no HealthKit and no workout APIs; `WKBackgroundModes` is `["alarm"]` in the built bundle. `CMSensorRecorder` records 50 Hz for 12 h and cannot be stopped early. The morning export reduces it to 30 s epochs with sample counts and needs the app open while it reads. The gentle-wake trigger is three consecutive 0.5 s readings changing by more than 0.12 g, so a single roll-over can trigger it. Test that awake first.
 - **HealthKit:** read-only, with an empty share set. Apple Watch source filter is `com.apple.*` plus a `Watch*` product type. Delivery is best effort, with observers now on sleep and the nightly vitals. Resting heart rate is a daily sample, so its overlap with a night can include two days; it is only shown in the raw sheet.
 - **Audio:** built-in SoundAnalysis v1 with a label allowlist, 0.8 confidence, a −45 dBFS gate, a 15 s raw ring, clips of 10 s or less as AAC at 32 kbps, 20 MB per session, 300 MB total and 14-day expiry at the next cleanup.
-- **Open decision:** the `.record` category stops other apps' audio, including white-noise or rain sounds Randy may sleep with. `.playAndRecord` with `.mixWithOthers` would keep those playing, but the mic would hear them and classification would suffer. Decide before the sound nights. Unchanged here.
+- **Other apps' audio (default pending Randy's answer):** recording now keeps other apps' audio playing, so white-noise or rain sounds don't go silent. The baseline's `.record` category stopped them. The session is `.playAndRecord` in the default mode with `.mixWithOthers`, `.defaultToSpeaker` (other apps stay on the speaker, not the receiver) and `.allowBluetoothA2DP` (Bluetooth speakers keep working). Apple documents mixing for play-and-record in the default mode, so `.measurement` was dropped. The costs, to check on device: input may now get system gain processing, which makes dBFS levels and the −45 dBFS gate less comparable, and the mic hears the sleep sounds, which can mask snoring. The Start sheet says other apps keep playing. This is its own commit (`Keep other apps' audio playing while recording`); if Randy prefers silence, revert that one commit.
 - **Thresholds that are guesses:** 0.8 confidence, −45 dBFS, 0.12 g (both the haptic trigger and fusion), and an 8 bpm heart-rate rise within 90 s. Calibrate them from the first exported pilot nights.
 
 ## Ground rules
@@ -89,4 +89,4 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
    - the overnight heart-rate cadence, to tune fusion;
    - whether a 10 s haptic interval wakes Randy;
    - when the morning notification arrives.
-4. **Decision for Randy:** the audio session category (see the open decision above).
+4. **Decision for Randy:** whether other apps' audio keeps playing during recording (see above). Keep-playing is the current default.

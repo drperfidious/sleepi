@@ -22,7 +22,11 @@ import SleepiAudio
         await stop(); stopPlayback(); self.onStatus = onStatus
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.record, mode: .measurement, options: [])
+            // Mix with other apps so sleep sounds (white noise, rain) keep playing; .record would stop them.
+            // Apple documents mixWithOthers for play-and-record in the default mode, so .measurement is dropped:
+            // input may get system gain processing, which makes dBFS levels and the -45 dBFS gate less comparable.
+            // defaultToSpeaker keeps other apps on the speaker instead of the receiver; A2DP keeps Bluetooth speakers.
+            try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothA2DP])
             try session.setActive(true)
             let engine = AVAudioEngine()
             let input = engine.inputNode
@@ -76,7 +80,8 @@ import SleepiAudio
         case AVAudioSession.routeChangeNotification:
             let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
             switch raw.flatMap(AVAudioSession.RouteChangeReason.init(rawValue:)) {
-            case .newDeviceAvailable, .oldDeviceUnavailable, .override, .noSuitableRouteForCategory: return true
+            // .override is excluded: only this app can override its own route, so it is never an outside interruption.
+            case .newDeviceAvailable, .oldDeviceUnavailable, .noSuitableRouteForCategory: return true
             default: return false
             }
         case AVAudioSession.mediaServicesWereResetNotification: return true

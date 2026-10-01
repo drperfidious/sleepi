@@ -41,7 +41,7 @@ struct StartSheet: View {
             Text("Save an in-bed marker. Apple Watch continues its own sleep tracking.").foregroundStyle(SleepiTheme.muted)
             Card {
                 Toggle(isOn: $sound) { Label("Record sound highlights", systemImage: "waveform") }.disabled(!model.audioAvailable)
-                Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Your microphone listens on this iPhone. Short clips may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Your microphone listens on this iPhone. Short clips may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved. Sounds from other apps keep playing, and sleepi may hear them.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
             Card {
                 Label("Gentle wake · Watch pilot", systemImage: "applewatch").font(.subheadline)
