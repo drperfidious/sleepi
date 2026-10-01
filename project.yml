@@ -1,0 +1,147 @@
+name: Sleepi
+options:
+  bundleIdPrefix: app.sleepi
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "26.0"
+    watchOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+packages:
+  Sleepi:
+    path: .
+targets:
+  Sleepi:
+    type: application
+    platform: iOS
+    sources:
+      - Apps/iOS
+      - Apps/Intents
+      - Apps/Activity
+      - Config/iOSAssets.xcassets
+      - Config/PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.sleepi.ios
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SUPPORTS_MACCATALYST: false
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
+    info:
+      path: Config/iOS-Info.plist
+      properties:
+        CFBundleDisplayName: sleepi
+        NSHealthShareUsageDescription: sleepi reads your Apple Watch sleep and overnight measurements to help you understand your nights. It never writes to Health.
+        NSMicrophoneUsageDescription: With your confirmation, sleepi listens for room sounds and keeps short highlights on this iPhone.
+        UIBackgroundModes: [audio]
+        NSSupportsLiveActivities: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        CFBundleURLTypes:
+          - CFBundleURLName: app.sleepi.tonight
+            CFBundleURLSchemes: [sleepi]
+    entitlements:
+      path: Config/Sleepi.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
+    dependencies:
+      - package: Sleepi
+        product: SleepiCore
+      - package: Sleepi
+        product: SleepiUI
+      - package: Sleepi
+        product: SleepiAudio
+      - target: SleepiWidgets
+        embed: true
+      - target: SleepiWatch
+        embed: true
+  SleepiWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Apps/Widgets
+      - Apps/Intents
+      - Apps/Activity
+      - Config/PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.sleepi.ios.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        APPLICATION_EXTENSION_API_ONLY: true
+        SKIP_INSTALL: true
+    info:
+      path: Config/Widgets-Info.plist
+      properties:
+        CFBundleDisplayName: sleepi
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  SleepiWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - Apps/Watch
+      - Apps/Intents
+      - Config/WatchAssets.xcassets
+      - Config/PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.sleepi.ios.watch
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SKIP_INSTALL: true
+    info:
+      path: Config/Watch-Info.plist
+      properties:
+        CFBundleDisplayName: sleepi
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: app.sleepi.ios
+        WKRunsIndependentlyOfCompanionApp: false
+        WKBackgroundModes: [alarm]
+        NSMotionUsageDescription: During an explicitly enabled device pilot, sleepi records motion to study possible waking. It never starts a workout.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.sleepi.tonight
+            CFBundleURLSchemes: [sleepi]
+    dependencies:
+      - package: Sleepi
+        product: SleepiCore
+      - target: SleepiWatchWidgets
+        embed: true
+  SleepiWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - Apps/WatchWidgets
+      - Apps/Intents
+      - Config/PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.sleepi.ios.watch.widgets
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true
+    info:
+      path: Config/WatchWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: sleepi
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+schemes:
+  Sleepi:
+    build:
+      targets:
+        Sleepi: all
+    run:
+      config: Debug
+  SleepiWatch:
+    build:
+      targets:
+        SleepiWatch: all
+    run:
+      config: Debug

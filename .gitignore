@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+evidence/*.pdf
+evidence/*.txt
+evidence/*.json

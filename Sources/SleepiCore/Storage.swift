@@ -1,0 +1,111 @@
+import Foundation
+
+public struct RetentionPlan: Sendable {
+    public var deleteIDs: Set<UUID>
+    public var retainedBytes: Int
+    public var canRecord: Bool
+}
+
+public enum ClipRetention {
+    /// Starred clips count toward the hard cap; if they fill it, recording stops.
+    public static func plan(events: [SoundEvent], now: Date, days: Int = 14, budget: Int = 300_000_000, reservation: Int = 160_000) -> RetentionPlan {
+        let cutoff = now.addingTimeInterval(-Double(max(0, days)) * 86400)
+        let files = events.filter { $0.fileName != nil }
+        var removed = Set(files.filter { !$0.starred && $0.end < cutoff }.map(\.id))
+        var bytes = files.filter { !removed.contains($0.id) }.reduce(0) { $0 + max(0, $1.byteCount) }
+        for event in files.filter({ !$0.starred && !removed.contains($0.id) }).sorted(by: { $0.start < $1.start }) where bytes + reservation > budget {
+            removed.insert(event.id); bytes -= max(0, event.byteCount)
+        }
+        return RetentionPlan(deleteIDs: removed, retainedBytes: bytes, canRecord: bytes + reservation <= budget)
+    }
+}
+
+public enum StoreError: LocalizedError {
+    case unsupportedVersion(Int), unsafeFileName
+    public var errorDescription: String? {
+        switch self {
+        case .unsupportedVersion(let version): "This library uses a newer format (\(version)). It was left unchanged."
+        case .unsafeFileName: "The recording filename is invalid."
+        }
+    }
+}
+
+public actor LocalRepository {
+    public let directory: URL
+    public init(directory: URL) throws {
+        self.directory = directory
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Self.protect(directory)
+        let clips = directory.appendingPathComponent("Clips", isDirectory: true)
+        try FileManager.default.createDirectory(at: clips, withIntermediateDirectories: true)
+        try Self.protect(clips)
+    }
+    public func load() throws -> LocalState {
+        let url = directory.appendingPathComponent("library.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return LocalState() }
+        let state = try JSONDecoder().decode(LocalState.self, from: Data(contentsOf: url))
+        guard state.schemaVersion == 1 else { throw StoreError.unsupportedVersion(state.schemaVersion) }
+        return state
+    }
+    public func save(_ state: LocalState) throws {
+        let data = try JSONEncoder().encode(state)
+        let url = directory.appendingPathComponent("library.json")
+        #if os(iOS) || os(watchOS)
+        try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        #else
+        try data.write(to: url, options: .atomic)
+        #endif
+        try Self.protect(url)
+    }
+    public func clipURL(_ name: String) throws -> URL {
+        guard name == URL(fileURLWithPath: name).lastPathComponent, !name.hasPrefix("."), !name.contains("/"), name.hasSuffix(".m4a") else { throw StoreError.unsafeFileName }
+        return directory.appendingPathComponent("Clips").appendingPathComponent(name)
+    }
+    public func deleteClip(_ name: String) throws {
+        let url = try clipURL(name)
+        if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+    }
+    public func removeOrphanClips(keeping names: Set<String>) throws {
+        let clips = directory.appendingPathComponent("Clips")
+        for file in try FileManager.default.contentsOfDirectory(at: clips, includingPropertiesForKeys: nil) where !names.contains(file.lastPathComponent) {
+            try FileManager.default.removeItem(at: file)
+        }
+    }
+    public func deleteAll() throws {
+        // Persist an empty state first. A failed deletion can safely be retried on next launch.
+        try save(LocalState())
+        try removeOrphanClips(keeping: [])
+    }
+    public static func protect(_ url: URL) throws {
+        var mutable = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try mutable.setResourceValues(values)
+        #if os(iOS) || os(watchOS)
+        // New files must be writable while locked during explicit overnight recording.
+        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
+        #else
+        try FileManager.default.setAttributes([.posixPermissions: url.hasDirectoryPath ? 0o700 : 0o600], ofItemAtPath: url.path)
+        #endif
+    }
+}
+
+public struct PCMWindow: Sendable {
+    public let capacity: Int
+    private var storage: [Float]
+    private var cursor = 0
+    public private(set) var count = 0
+    public init(capacity: Int) { self.capacity = max(1, capacity); storage = Array(repeating: 0, count: max(1, capacity)) }
+    public mutating func append(_ samples: [Float]) {
+        for sample in samples { storage[cursor] = sample; cursor = (cursor + 1) % capacity; count = min(capacity, count + 1) }
+    }
+    public var samples: [Float] {
+        if count < capacity { return Array(storage.prefix(count)) }
+        return Array(storage[cursor...]) + Array(storage[..<cursor])
+    }
+    public static func dbfs(_ samples: [Float]) -> Double {
+        guard !samples.isEmpty else { return -120 }
+        let power = samples.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(samples.count)
+        return max(-120, 10 * log10(max(1e-12, power)))
+    }
+}

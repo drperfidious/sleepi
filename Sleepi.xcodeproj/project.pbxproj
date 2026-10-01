@@ -1,0 +1,828 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0ED299F4DA96F9A0B7F2197E /* OpenTonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */; };
+		1145445E5A25F3358E9ACA1B /* PhoneWatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC6B15BABF9AF91955000FC /* PhoneWatchBridge.swift */; };
+		15DDB2F2D98E1641E35C949D /* SleepiAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 32994129B15DC4EDE3698A0A /* SleepiAudio */; };
+		1B5D4DAF9698EF000CE1DA31 /* OpenTonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */; };
+		20C68D6332179EC43C8D08F9 /* WatchWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F62DA198F7A98732601B31 /* WatchWidgets.swift */; };
+		48B852865A02B091EDD806E5 /* SleepActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133F3CA2869B5E556AC426B9 /* SleepActivityAttributes.swift */; };
+		51186484EB1D0ECE02A34401 /* SleepiUI in Frameworks */ = {isa = PBXBuildFile; productRef = CBF5ED8B4A1936A68C3F8EBA /* SleepiUI */; };
+		70C2B17924A4FE0C28202358 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC435CE226EF8336DCE41941 /* AudioRecorder.swift */; };
+		7E7B6364F8D0664F3DDF6CDC /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */; };
+		803D9884C783C199D30447F8 /* HealthKitReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83E6E897A25792B9C6D4CD7 /* HealthKitReader.swift */; };
+		80A519C54EEF75C5204FD8C0 /* TonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BE04BFBF02D0E72CE83E7E /* TonightIntent.swift */; };
+		8204C889C0B04CEF18A9AE6B /* SleepiWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 011FCDCF00D200393F37D38E /* SleepiWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		838980998B1BACB6FA6B0322 /* SleepiCore in Frameworks */ = {isa = PBXBuildFile; productRef = 87AA596A259F54AF7B9073BE /* SleepiCore */; };
+		86B9F4FF325FA0B64DEEDEDE /* WatchPilot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD55105A78000F8C5CA8CE96 /* WatchPilot.swift */; };
+		871DE6DC6B5FA3A8D046ED37 /* SleepiCore in Frameworks */ = {isa = PBXBuildFile; productRef = DEC1FA4023146F80719DF4D5 /* SleepiCore */; };
+		8EC04BD066318AB7098E98EA /* SleepiWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9809067D2C665468985AD10F /* SleepActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133F3CA2869B5E556AC426B9 /* SleepActivityAttributes.swift */; };
+		9EEC540CB0B2695FEEA71F97 /* SleepiWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD341BE9E2463C38442F6BD8 /* SleepiWidgets.swift */; };
+		9F354C55A65D03707A9BF399 /* iOSAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A9A8E9C26A1A098C396ECDD /* iOSAssets.xcassets */; };
+		ABCD3487F554EEBAA2AFCF2D /* SleepiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */; };
+		C7962D64E521EADD43D770FD /* SleepiWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76CAC9B3EC9666A6401D310 /* SleepiWatchApp.swift */; };
+		C7ECE010C7F0D4D53AE1A3DD /* OpenTonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */; };
+		D9A5409B58026CEB78F0ACEA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */; };
+		DAEDC48D146890EB6E294FF4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */; };
+		E376AF5167B6D5198C5D4F52 /* OpenTonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */; };
+		F24F2F52C2718A4A196519BC /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */; };
+		F5AAA3EDD06003B4F983AF07 /* SleepiWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 35AF1E7C94A487C5886E4305 /* SleepiWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F9D0791F4A29CC601F78C450 /* WatchAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B79EB49753CB44AACA4B7575 /* WatchAssets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2083F48250D168793DA97D6C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FABD5E4846D0783E3F35617F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A6AA8321A6A9C237E3C0CB96;
+			remoteInfo = SleepiWatch;
+		};
+		37043D1CD4C068B8DAED5B8E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FABD5E4846D0783E3F35617F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7823D58850AFB2FFEE2B036E;
+			remoteInfo = SleepiWidgets;
+		};
+		37CD339474749AB55D75955F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FABD5E4846D0783E3F35617F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 972AEBDC9E446221D1331123;
+			remoteInfo = SleepiWatchWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		09161471A960763F02355704 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8EC04BD066318AB7098E98EA /* SleepiWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		36DBA8B7C798E3015DE3708E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8204C889C0B04CEF18A9AE6B /* SleepiWatchWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A18D18279FC5D1B3B3B95A1B /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				F5AAA3EDD06003B4F983AF07 /* SleepiWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		011FCDCF00D200393F37D38E /* SleepiWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepiWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		133F3CA2869B5E556AC426B9 /* SleepActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepActivityAttributes.swift; sourceTree = "<group>"; };
+		190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		35AF1E7C94A487C5886E4305 /* SleepiWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepiWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepiApp.swift; sourceTree = "<group>"; };
+		4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SleepiWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B37A2054AF53E223C6C9AD8 /* Sleepi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A9A8E9C26A1A098C396ECDD /* iOSAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = iOSAssets.xcassets; sourceTree = "<group>"; };
+		B79EB49753CB44AACA4B7575 /* WatchAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WatchAssets.xcassets; sourceTree = "<group>"; };
+		BD55105A78000F8C5CA8CE96 /* WatchPilot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPilot.swift; sourceTree = "<group>"; };
+		C1BE04BFBF02D0E72CE83E7E /* TonightIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonightIntent.swift; sourceTree = "<group>"; };
+		C1F62DA198F7A98732601B31 /* WatchWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWidgets.swift; sourceTree = "<group>"; };
+		D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenTonightIntent.swift; sourceTree = "<group>"; };
+		D5058D767D050D34DC427D91 /* sleepi */ = {isa = PBXFileReference; lastKnownFileType = folder; name = sleepi; path = .; sourceTree = SOURCE_ROOT; };
+		D83E6E897A25792B9C6D4CD7 /* HealthKitReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitReader.swift; sourceTree = "<group>"; };
+		DC435CE226EF8336DCE41941 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		E76CAC9B3EC9666A6401D310 /* SleepiWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepiWatchApp.swift; sourceTree = "<group>"; };
+		FAC6B15BABF9AF91955000FC /* PhoneWatchBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchBridge.swift; sourceTree = "<group>"; };
+		FD341BE9E2463C38442F6BD8 /* SleepiWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepiWidgets.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0FF3865765076FF9B29E3BB6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				838980998B1BACB6FA6B0322 /* SleepiCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A75AD985DE629C8D1924086 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				871DE6DC6B5FA3A8D046ED37 /* SleepiCore in Frameworks */,
+				51186484EB1D0ECE02A34401 /* SleepiUI in Frameworks */,
+				15DDB2F2D98E1641E35C949D /* SleepiAudio in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		10170FB7B30E8CA85D62E1E1 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				FD341BE9E2463C38442F6BD8 /* SleepiWidgets.swift */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		23B31B188196741343C0EF1A /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		2420DAB1958220B23D4259AE /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				7A9A8E9C26A1A098C396ECDD /* iOSAssets.xcassets */,
+				190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */,
+				B79EB49753CB44AACA4B7575 /* WatchAssets.xcassets */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		3793DEB2DCB4C3184D5BDFB0 /* WatchWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				C1F62DA198F7A98732601B31 /* WatchWidgets.swift */,
+			);
+			path = WatchWidgets;
+			sourceTree = "<group>";
+		};
+		43A302174965F515D104E329 /* Apps */ = {
+			isa = PBXGroup;
+			children = (
+				8FCADC4567875777C68E3DE3 /* Activity */,
+				23B31B188196741343C0EF1A /* Intents */,
+				DB7AB2BC953673F363C6CE4B /* iOS */,
+				A1B29AD8AB2BC4B041C279EE /* Watch */,
+				3793DEB2DCB4C3184D5BDFB0 /* WatchWidgets */,
+				10170FB7B30E8CA85D62E1E1 /* Widgets */,
+			);
+			path = Apps;
+			sourceTree = "<group>";
+		};
+		8FCADC4567875777C68E3DE3 /* Activity */ = {
+			isa = PBXGroup;
+			children = (
+				133F3CA2869B5E556AC426B9 /* SleepActivityAttributes.swift */,
+			);
+			path = Activity;
+			sourceTree = "<group>";
+		};
+		93D0CB72AAC3C97E4FF94291 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				6B37A2054AF53E223C6C9AD8 /* Sleepi.app */,
+				35AF1E7C94A487C5886E4305 /* SleepiWatch.app */,
+				011FCDCF00D200393F37D38E /* SleepiWatchWidgets.appex */,
+				4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1B29AD8AB2BC4B041C279EE /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				E76CAC9B3EC9666A6401D310 /* SleepiWatchApp.swift */,
+				BD55105A78000F8C5CA8CE96 /* WatchPilot.swift */,
+			);
+			path = Watch;
+			sourceTree = "<group>";
+		};
+		A25646BD81ED853120823254 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				D5058D767D050D34DC427D91 /* sleepi */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		DB7AB2BC953673F363C6CE4B /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				DC435CE226EF8336DCE41941 /* AudioRecorder.swift */,
+				D83E6E897A25792B9C6D4CD7 /* HealthKitReader.swift */,
+				FAC6B15BABF9AF91955000FC /* PhoneWatchBridge.swift */,
+				3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */,
+				C1BE04BFBF02D0E72CE83E7E /* TonightIntent.swift */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		F8AE974749BCED06C52F61B4 = {
+			isa = PBXGroup;
+			children = (
+				43A302174965F515D104E329 /* Apps */,
+				2420DAB1958220B23D4259AE /* Config */,
+				A25646BD81ED853120823254 /* Packages */,
+				93D0CB72AAC3C97E4FF94291 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3C261ACF0DF7909F5EF00F3A /* Sleepi */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E71931308429AAF843C9B835 /* Build configuration list for PBXNativeTarget "Sleepi" */;
+			buildPhases = (
+				04159B3BC455B03BE6CE1B8B /* Sources */,
+				B8DE53C2AC8837DE69E48B0F /* Resources */,
+				7A75AD985DE629C8D1924086 /* Frameworks */,
+				09161471A960763F02355704 /* Embed Foundation Extensions */,
+				A18D18279FC5D1B3B3B95A1B /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B9B1339EE6BB11A3954E47A1 /* PBXTargetDependency */,
+				84FA7929B651FBA306F94A90 /* PBXTargetDependency */,
+			);
+			name = Sleepi;
+			packageProductDependencies = (
+				DEC1FA4023146F80719DF4D5 /* SleepiCore */,
+				CBF5ED8B4A1936A68C3F8EBA /* SleepiUI */,
+				32994129B15DC4EDE3698A0A /* SleepiAudio */,
+			);
+			productName = Sleepi;
+			productReference = 6B37A2054AF53E223C6C9AD8 /* Sleepi.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7823D58850AFB2FFEE2B036E /* SleepiWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7EC7FEC90B6879AEE9251E52 /* Build configuration list for PBXNativeTarget "SleepiWidgets" */;
+			buildPhases = (
+				2C7040C248D55A41990ABD42 /* Sources */,
+				0C8B986F4240FCA26392C6E1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SleepiWidgets;
+			packageProductDependencies = (
+			);
+			productName = SleepiWidgets;
+			productReference = 4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		972AEBDC9E446221D1331123 /* SleepiWatchWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B81614DB602F5C4D548C3D56 /* Build configuration list for PBXNativeTarget "SleepiWatchWidgets" */;
+			buildPhases = (
+				F998A3C99DBAF722AB0C903E /* Sources */,
+				E6B2EFC5A7E304F32B25925F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SleepiWatchWidgets;
+			packageProductDependencies = (
+			);
+			productName = SleepiWatchWidgets;
+			productReference = 011FCDCF00D200393F37D38E /* SleepiWatchWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A6AA8321A6A9C237E3C0CB96 /* SleepiWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF49D40AE6015A3DA6AB7F69 /* Build configuration list for PBXNativeTarget "SleepiWatch" */;
+			buildPhases = (
+				11B5A4A8ECF3D4B49000EA8F /* Sources */,
+				01CEEADD18A148C5B8E3C21D /* Resources */,
+				0FF3865765076FF9B29E3BB6 /* Frameworks */,
+				36DBA8B7C798E3015DE3708E /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				55613F0A0A6F271E9B3F6B34 /* PBXTargetDependency */,
+			);
+			name = SleepiWatch;
+			packageProductDependencies = (
+				87AA596A259F54AF7B9073BE /* SleepiCore */,
+			);
+			productName = SleepiWatch;
+			productReference = 35AF1E7C94A487C5886E4305 /* SleepiWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FABD5E4846D0783E3F35617F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					3C261ACF0DF7909F5EF00F3A = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					7823D58850AFB2FFEE2B036E = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					972AEBDC9E446221D1331123 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					A6AA8321A6A9C237E3C0CB96 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 9658F1364047A74196E5E2E2 /* Build configuration list for PBXProject "Sleepi" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F8AE974749BCED06C52F61B4;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A06D2F25796DBC5A43EEC394 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 93D0CB72AAC3C97E4FF94291 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3C261ACF0DF7909F5EF00F3A /* Sleepi */,
+				7823D58850AFB2FFEE2B036E /* SleepiWidgets */,
+				A6AA8321A6A9C237E3C0CB96 /* SleepiWatch */,
+				972AEBDC9E446221D1331123 /* SleepiWatchWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		01CEEADD18A148C5B8E3C21D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7E7B6364F8D0664F3DDF6CDC /* PrivacyInfo.xcprivacy in Resources */,
+				F9D0791F4A29CC601F78C450 /* WatchAssets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0C8B986F4240FCA26392C6E1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D9A5409B58026CEB78F0ACEA /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B8DE53C2AC8837DE69E48B0F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F24F2F52C2718A4A196519BC /* PrivacyInfo.xcprivacy in Resources */,
+				9F354C55A65D03707A9BF399 /* iOSAssets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E6B2EFC5A7E304F32B25925F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAEDC48D146890EB6E294FF4 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		04159B3BC455B03BE6CE1B8B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				70C2B17924A4FE0C28202358 /* AudioRecorder.swift in Sources */,
+				803D9884C783C199D30447F8 /* HealthKitReader.swift in Sources */,
+				C7ECE010C7F0D4D53AE1A3DD /* OpenTonightIntent.swift in Sources */,
+				1145445E5A25F3358E9ACA1B /* PhoneWatchBridge.swift in Sources */,
+				48B852865A02B091EDD806E5 /* SleepActivityAttributes.swift in Sources */,
+				ABCD3487F554EEBAA2AFCF2D /* SleepiApp.swift in Sources */,
+				80A519C54EEF75C5204FD8C0 /* TonightIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		11B5A4A8ECF3D4B49000EA8F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E376AF5167B6D5198C5D4F52 /* OpenTonightIntent.swift in Sources */,
+				C7962D64E521EADD43D770FD /* SleepiWatchApp.swift in Sources */,
+				86B9F4FF325FA0B64DEEDEDE /* WatchPilot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2C7040C248D55A41990ABD42 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1B5D4DAF9698EF000CE1DA31 /* OpenTonightIntent.swift in Sources */,
+				9809067D2C665468985AD10F /* SleepActivityAttributes.swift in Sources */,
+				9EEC540CB0B2695FEEA71F97 /* SleepiWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F998A3C99DBAF722AB0C903E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0ED299F4DA96F9A0B7F2197E /* OpenTonightIntent.swift in Sources */,
+				20C68D6332179EC43C8D08F9 /* WatchWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		55613F0A0A6F271E9B3F6B34 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 972AEBDC9E446221D1331123 /* SleepiWatchWidgets */;
+			targetProxy = 37CD339474749AB55D75955F /* PBXContainerItemProxy */;
+		};
+		84FA7929B651FBA306F94A90 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A6AA8321A6A9C237E3C0CB96 /* SleepiWatch */;
+			targetProxy = 2083F48250D168793DA97D6C /* PBXContainerItemProxy */;
+		};
+		B9B1339EE6BB11A3954E47A1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7823D58850AFB2FFEE2B036E /* SleepiWidgets */;
+			targetProxy = 37043D1CD4C068B8DAED5B8E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1D3DE54CCD1DBB6ABE6C4D66 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Sleepi.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Config/iOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		20FEE9CC1FE493FAC63C3963 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		36B0BDFC52B56A669629E1D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = "Config/WatchWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch.widgets;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		5C62DC242EB64DE3FB520094 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Sleepi.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Config/iOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		8723D0E881381B1745576CDD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		8E67469871FFB37FB0924979 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = "Config/Watch-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		A033B46D7E536413024A10A9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A93BC932D79C18227559DBCD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = "Config/WatchWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch.widgets;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		B6D810ADBCBFEB4D10B26602 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = "Config/Watch-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		B97ED42457D9799548A433C4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7EC7FEC90B6879AEE9251E52 /* Build configuration list for PBXNativeTarget "SleepiWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A033B46D7E536413024A10A9 /* Debug */,
+				8723D0E881381B1745576CDD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9658F1364047A74196E5E2E2 /* Build configuration list for PBXProject "Sleepi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				20FEE9CC1FE493FAC63C3963 /* Debug */,
+				B97ED42457D9799548A433C4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B81614DB602F5C4D548C3D56 /* Build configuration list for PBXNativeTarget "SleepiWatchWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				36B0BDFC52B56A669629E1D1 /* Debug */,
+				A93BC932D79C18227559DBCD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF49D40AE6015A3DA6AB7F69 /* Build configuration list for PBXNativeTarget "SleepiWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B6D810ADBCBFEB4D10B26602 /* Debug */,
+				8E67469871FFB37FB0924979 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E71931308429AAF843C9B835 /* Build configuration list for PBXNativeTarget "Sleepi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5C62DC242EB64DE3FB520094 /* Debug */,
+				1D3DE54CCD1DBB6ABE6C4D66 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A06D2F25796DBC5A43EEC394 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		32994129B15DC4EDE3698A0A /* SleepiAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SleepiAudio;
+		};
+		87AA596A259F54AF7B9073BE /* SleepiCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SleepiCore;
+		};
+		CBF5ED8B4A1936A68C3F8EBA /* SleepiUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SleepiUI;
+		};
+		DEC1FA4023146F80719DF4D5 /* SleepiCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SleepiCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = FABD5E4846D0783E3F35617F /* Project object */;
+}
