@@ -80,7 +80,7 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 
 ## Next steps
 
-1. **Signing:** Randy's team is set in the Xcode project, but `project.yml` still has `DEVELOPMENT_TEAM: ""`, so `scripts/generate_project.sh` would erase it. Add the team to `project.yml`. Those Xcode edits were left uncommitted in the working tree.
+1. **Signing (done):** Randy's team is committed in both the Xcode project and `project.yml`, so regenerating keeps it. Only identifiers are committed. A signed Release build (Apple Development, HealthKit and background-delivery entitlements) was installed on Randy's iPhone 14 Pro Max (iOS 27.0) and launched once. The Watch wasn't visible to Xcode, so the embedded Watch app installs through the iPhone's Watch app (automatic install, or Available Apps). Merged into `main`.
 2. **Device order (unchanged from `docs/PLAN.md`):** baseline nights, then passive nights (no sound, pilot off), then sound, then the Watch pilot. For the pilot, add `SLEEPI_DEVICE_PILOT` to the SleepiWatch Debug "Active Compilation Conditions" locally and don't commit it.
 3. **Device checks this audit added:**
    - whether background `invalidate()` cancels a stale gentle wake (finding 10);
