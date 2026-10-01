@@ -13,6 +13,7 @@ import SleepiUI
         watchBridge = bridge
         model.onLocalStoreReady = { [weak bridge] in bridge?.activate() }
         model.onSnapshot = { [weak bridge] night in bridge?.sendSummary(night) }
+        model.onSessionSync = { [weak bridge] event in bridge?.send(event) }
         model.requestNotifications = {
             (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
         }

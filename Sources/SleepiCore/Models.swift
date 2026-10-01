@@ -133,12 +133,18 @@ public struct SoundEvent: Codable, Identifiable, Sendable {
     }
 }
 
+public enum SessionOrigin: String, Codable, Sendable { case phone, watch }
+
 public struct TonightSession: Codable, Identifiable, Sendable {
     public var id: UUID = UUID()
     public var start: Date
     public var end: Date?
     public var requestedAudio: Bool
     public var status: String
+    /// Where the night was started. Nil in libraries written before iPhone–Watch sync.
+    public var origin: SessionOrigin?
+    /// The Watch's id for this night when both devices started one before hearing from each other.
+    public var watchID: UUID?
     public init(start: Date = .now, requestedAudio: Bool, status: String = "In bed") {
         self.start = start; self.requestedAudio = requestedAudio; self.status = status
     }

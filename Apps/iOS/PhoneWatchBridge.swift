@@ -17,6 +17,21 @@ import SleepiUI
         if let night { value["asleep"] = night.asleepSeconds; value["date"] = night.lastSleep?.timeIntervalSince1970 }
         try? WCSession.default.updateApplicationContext(value)
     }
+    /// Queued, guaranteed delivery: a night started or ended here starts or ends it on the Watch, even if the Watch
+    /// app isn't running right now. The Watch never starts motion or a gentle wake from this message.
+    func send(_ event: SessionSyncEvent) {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated,
+              WCSession.default.isPaired, WCSession.default.isWatchAppInstalled else { return }
+        var info: [String: Any] = ["schema": 1]
+        switch event {
+        case .started(let night):
+            info["action"] = "phoneStart"; info["id"] = night.id.uuidString; info["start"] = night.start.timeIntervalSince1970
+        case .ended(let night):
+            info["action"] = "phoneEnd"; info["id"] = night.id.uuidString
+            if let watchID = night.watchID { info["watchID"] = watchID.uuidString }
+        }
+        WCSession.default.transferUserInfo(info)
+    }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
         Task { @MainActor in self.sendSummary(self.model?.nights.last) }
     }

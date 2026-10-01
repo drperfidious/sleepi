@@ -137,3 +137,50 @@ import SleepiCore
     await model.load()
     #expect(model.error == nil); #expect(model.state.settings.targetHours == 7)
 }
+
+@MainActor private final class SyncLog { var events: [SessionSyncEvent] = [] }
+
+@Test @MainActor func nightStartedOnWatchIsActiveOnIPhoneWithoutMicrophone() async throws {
+    // Regression: a Watch start used to arrive as an already-ended marker, so the two devices disagreed.
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let audio = FakeAudio(); let model = AppModel(audio: audio, directory: dir); await model.load()
+    let id = UUID(), start = Date.now.addingTimeInterval(-600)
+    await model.importWatchMarker(id: id, start: start, end: nil)
+    await model.importWatchMarker(id: id, start: start, end: nil)
+    #expect(model.state.sessions.count == 1); #expect(model.activeSession?.id == id)
+    #expect(model.activeSession?.origin == .watch); #expect(audio.starts == 0)
+    await model.addSoundToTonight()
+    #expect(audio.starts == 1); #expect(model.activeSession?.requestedAudio == true)
+    await model.importWatchMarker(id: id, start: start, end: .now)
+    #expect(model.activeSession == nil); #expect(!audio.isRecording)
+}
+
+@Test @MainActor func endingOnIPhoneEndsTheWatchNightAndWatchNightsSurviveRestart() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let first = AppModel(directory: dir); await first.load()
+    let id = UUID()
+    await first.importWatchMarker(id: id, start: .now.addingTimeInterval(-600), end: nil)
+    let restarted = AppModel(directory: dir); await restarted.load()
+    #expect(restarted.activeSession?.id == id) // still running on the Watch
+    let log = SyncLog(); restarted.onSessionSync = { log.events.append($0) }
+    await restarted.stopTonight()
+    #expect(restarted.activeSession == nil)
+    guard case .ended(let night)? = log.events.last else { Issue.record("Watch was not told the night ended"); return }
+    #expect(night.id == id)
+}
+
+@Test @MainActor func nightsStartedOnBothDevicesStayOneNight() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let audio = FakeAudio(); let model = AppModel(audio: audio, directory: dir); await model.load()
+    let log = SyncLog(); model.onSessionSync = { log.events.append($0) }
+    await model.startTonight(sound: true)
+    guard case .started? = log.events.last else { Issue.record("Watch was not told the night started"); return }
+    let watchID = UUID(), start = Date.now.addingTimeInterval(-60)
+    await model.importWatchMarker(id: watchID, start: start, end: nil)
+    #expect(model.state.sessions.count == 1); #expect(model.activeSession?.watchID == watchID)
+    await model.importWatchMarker(id: watchID, start: start, end: .now)
+    #expect(model.activeSession == nil); #expect(!audio.isRecording)
+}

@@ -17,6 +17,11 @@ import SleepiCore
     func stopPlayback()
 }
 
+/// A night started or ended on this iPhone, for the Watch to mirror.
+public enum SessionSyncEvent: Sendable {
+    case started(TonightSession), ended(TonightSession)
+}
+
 @Observable @MainActor public final class AppModel {
     public var state = LocalState()
     public var snapshot = HealthSnapshot(samples: [])
@@ -35,6 +40,7 @@ import SleepiCore
     public var isStopping = false
     public var playingID: UUID?
     public var onSessionChanged: (@MainActor (TonightSession?) -> Void)?
+    public var onSessionSync: (@MainActor (SessionSyncEvent) -> Void)?
     public var onMorning: (@MainActor (SleepNight) async -> Bool)?
     public var requestNotifications: (@MainActor () async -> Bool)?
     public var onSnapshot: (@MainActor (SleepNight?) -> Void)?
@@ -71,12 +77,20 @@ import SleepiCore
         do {
             if let store {
                 state = try await store.load(); canSave = true
-                // A process restart is not evidence of uninterrupted recording. End the marker.
+                // A process restart is not evidence of uninterrupted recording, so iPhone nights end here. A night
+                // started on the Watch is still running there: keep it, but any iPhone sound it carried has stopped.
                 for i in state.sessions.indices where state.sessions[i].end == nil {
+                    if state.sessions[i].origin == .watch, state.sessions[i].start > Date.now.addingTimeInterval(-18 * 3600) {
+                        if state.sessions[i].requestedAudio {
+                            state.sessions[i].requestedAudio = false
+                            state.sessions[i].status = "Started on Watch · sound stopped when sleepi restarted"
+                        }
+                        continue
+                    }
                     state.sessions[i].end = .now
-                    state.sessions[i].status = "Interrupted · end time recovered on launch"
+                    state.sessions[i].status = state.sessions[i].origin == .watch ? "No end received from Watch" : "Interrupted · end time recovered on launch"
                 }
-                onSessionChanged?(nil)
+                onSessionChanged?(activeSession)
                 try await store.removeOrphanClips(keeping: Set(state.sounds.compactMap(\.fileName)))
                 await pruneClips()
                 await persist()
@@ -131,33 +145,51 @@ import SleepiCore
         guard isDemo || canSave else { error = "Resolve the local storage issue before starting a night."; return }
         isStarting = true; defer { isStarting = false }
         audio?.stopPlayback(); playingID = nil
-        if sound {
-            guard let audio, let store, !isDemo else { error = "Sound recording requires the iPhone app."; return }
-            await pruneClips()
-            let remaining = state.settings.clipBudgetBytes - usedBytes
-            guard remaining >= 160_000 else { error = "Saved clips fill your storage budget. Remove a clip before recording."; return }
-            do {
-                let generation = UUID(); captureGeneration = generation
-                try await audio.start(directory: await store.directory.appendingPathComponent("Clips"), remainingBytes: min(remaining, 20_000_000), onEvent: { [weak self] event in
-                    guard let self, self.captureGeneration == generation else { return }
-                    self.state.sounds.append(event)
-                    Task { await self.persist() }
-                }, onStatus: { [weak self] status in self?.recordingStatus = status })
-            } catch { self.error = "Sound couldn’t start: \(error.localizedDescription)"; return }
-        }
-        let session = TonightSession(requestedAudio: sound, status: sound ? "Sound recording requested" : "In-bed marker only")
+        if sound { guard await beginCapture() else { return } }
+        var session = TonightSession(requestedAudio: sound, status: sound ? "Sound recording requested" : "In-bed marker only")
+        session.origin = .phone
         state.sessions.append(session); await persist()
         if !canSave && !isDemo { await audio?.stop(); state.sessions.removeAll { $0.id == session.id }; return }
-        onSessionChanged?(session); showStartSheet = false
+        onSessionChanged?(session); onSessionSync?(.started(session)); showStartSheet = false
+    }
+    /// Adds sound to a night that's already running, such as one started on the Watch. Consent is this foreground tap.
+    public func addSoundToTonight() async {
+        guard let index = state.sessions.lastIndex(where: { $0.end == nil }), !state.sessions[index].requestedAudio,
+              !isStarting, !isStopping else { return }
+        isStarting = true; defer { isStarting = false }
+        audio?.stopPlayback(); playingID = nil
+        guard await beginCapture() else { return }
+        state.sessions[index].requestedAudio = true; state.sessions[index].status = "Sound recording requested"
+        await persist(); onSessionChanged?(state.sessions[index])
+    }
+    private func beginCapture() async -> Bool {
+        guard let audio, let store, !isDemo else { error = "Sound recording requires the iPhone app."; return false }
+        await pruneClips()
+        let remaining = state.settings.clipBudgetBytes - usedBytes
+        guard remaining >= 160_000 else { error = "Saved clips fill your storage budget. Remove a clip before recording."; return false }
+        do {
+            let generation = UUID(); captureGeneration = generation
+            try await audio.start(directory: await store.directory.appendingPathComponent("Clips"), remainingBytes: min(remaining, 20_000_000), onEvent: { [weak self] event in
+                guard let self, self.captureGeneration == generation else { return }
+                self.state.sounds.append(event)
+                Task { await self.persist() }
+            }, onStatus: { [weak self] status in self?.recordingStatus = status })
+            return true
+        } catch { self.error = "Sound couldn’t start: \(error.localizedDescription)"; return false }
     }
     public func stopTonight() async {
         guard !isStarting, !isStopping else { return }
         isStopping = true; defer { isStopping = false }
-        await audio?.stop()
-        if let index = state.sessions.lastIndex(where: { $0.end == nil }) {
-            state.sessions[index].end = .now; state.sessions[index].status = "Ended"
+        guard let index = state.sessions.lastIndex(where: { $0.end == nil }) else {
+            await audio?.stop(); recordingStatus = "Sound is off"; onSessionChanged?(nil); return
         }
-        recordingStatus = "Sound is off"; onSessionChanged?(nil); await persist()
+        await finishSession(at: index, end: .now, status: "Ended")
+        onSessionSync?(.ended(state.sessions[index]))
+    }
+    private func finishSession(at index: Int, end: Date, status: String) async {
+        if index == state.sessions.lastIndex(where: { $0.end == nil }) { await audio?.stop(); recordingStatus = "Sound is off" }
+        state.sessions[index].end = end; state.sessions[index].status = status
+        onSessionChanged?(activeSession); await persist()
     }
     public func toggleStar(_ event: SoundEvent) async {
         if let i = state.sounds.firstIndex(where: { $0.id == event.id }) { state.sounds[i].starred.toggle(); await persist() }
@@ -205,17 +237,24 @@ import SleepiCore
         state.motionNights.removeAll { $0.end < Date.now.addingTimeInterval(-90 * 86400) }
         await persist()
     }
+    /// A night started or ended on the Watch. Starting one never starts the iPhone microphone; ending one ends the
+    /// matching iPhone night, including any sound it was recording. Repeated or late messages are no-ops.
     public func importWatchMarker(id: UUID, start: Date, end: Date?) async {
-        guard !isDemo, canSave, start <= .now, end.map({ $0 >= start && $0 <= .now }) ?? true else { return }
+        let skew = Date.now.addingTimeInterval(60) // the two clocks can differ slightly
+        guard !isDemo, canSave, start <= skew, end.map({ $0 >= start && $0 <= skew }) ?? true else { return }
         if let cutoff = state.ignoreWatchRecordsBefore, start < cutoff { return }
-        if let i = state.sessions.firstIndex(where: { $0.id == id }) {
-            if let end { state.sessions[i].end = end; state.sessions[i].status = "Ended on Watch" }
+        if let i = state.sessions.firstIndex(where: { $0.id == id || $0.watchID == id }) {
+            guard let end, state.sessions[i].end == nil else { return }
+            await finishSession(at: i, end: end, status: "Ended on Watch")
+        } else if end == nil, let i = state.sessions.lastIndex(where: { $0.end == nil }) {
+            // Both devices started a night before hearing from each other: keep one night, linked to the Watch's.
+            state.sessions[i].watchID = id; await persist()
         } else {
-            // A Watch marker is a journal entry, never a command to start the phone microphone.
-            var marker = TonightSession(start: start, requestedAudio: false, status: "Watch in-bed marker")
-            marker.id = id; marker.end = end ?? start; state.sessions.append(marker)
+            var marker = TonightSession(start: start, requestedAudio: false, status: end == nil ? "Started on Watch · microphone off" : "Watch in-bed marker")
+            marker.id = id; marker.end = end; marker.origin = .watch
+            state.sessions.append(marker); await persist()
+            if end == nil { onSessionChanged?(marker) }
         }
-        await persist()
     }
     /// Time from the latest in-bed marker (iPhone or Watch) before the night's first detected sleep. An estimate, not measured latency.
     public func markerToFirstSleep(for night: SleepNight) -> TimeInterval? {

@@ -66,11 +66,11 @@ import SleepiCore
     func restore(_ session: WKExtendedRuntimeSession) {
         runtime = session; session.delegate = self
     }
-    func end() {
+    func end(notifyPhone: Bool = true) {
         let orphanedWake = runtime == nil && state.latest != nil
         runtime?.invalidate(); runtime = nil; timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates()
         alerting = false; let end = Date.now
-        sendMarker(end: end)
+        if notifyPhone { sendMarker(end: end) }
         state.markerStart = nil; state.latest = nil; state.recordEnd = end; start = nil
         _ = save()
         status = orphanedWake ? "Night ended. If the gentle wake still taps, press Stop. Apple’s alarm is unchanged." : "Night ended. Apple’s alarm is unchanged."
@@ -180,6 +180,29 @@ import SleepiCore
             } else { self.summary = "Your nights, on iPhone"; self.summaryDate = nil }
         }
     }
+    /// Nights started or ended on iPhone. Starting one here is only an in-bed marker: motion recording and gentle wake
+    /// need this Watch's own confirmation, so a phone message never turns them on.
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        guard userInfo["schema"] as? Int == 1, let action = userInfo["action"] as? String,
+              let id = (userInfo["id"] as? String).flatMap(UUID.init(uuidString:)) else { return }
+        let watchID = (userInfo["watchID"] as? String).flatMap(UUID.init(uuidString:))
+        let start = (userInfo["start"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
+        Task { @MainActor in
+            if action == "phoneStart", let start { self.applyPhoneStart(id: id, start: start) }
+            if action == "phoneEnd" { self.applyPhoneEnd([id, watchID].compactMap { $0 }) }
+        }
+    }
+    private func applyPhoneStart(id: UUID, start: Date) {
+        guard self.start == nil, start > Date.now.addingTimeInterval(-18 * 3600), start <= Date.now.addingTimeInterval(60) else { return }
+        state = PilotState(id: id, markerStart: start, startedOnPhone: true)
+        guard save() else { return }
+        self.start = start; status = "Started on iPhone. Ending it here ends it there too."
+    }
+    private func applyPhoneEnd(_ ids: [UUID]) {
+        guard start != nil, ids.contains(state.id) else { return }
+        end(notifyPhone: false)
+        status = "Night ended on iPhone. Apple’s alarm is unchanged."
+    }
     nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: (any Error)?) {
         if error == nil { try? FileManager.default.removeItem(at: fileTransfer.file.fileURL) }
     }
@@ -191,6 +214,7 @@ private struct PilotState: Codable {
     var recordStart: Date?
     var latest: Date?
     var recordEnd: Date?
+    var startedOnPhone: Bool?
 }
 
 /// CMSensorDataList only adopts NSFastEnumeration, which Swift's for-in can't use directly.

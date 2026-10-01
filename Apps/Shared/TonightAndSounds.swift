@@ -15,8 +15,11 @@ struct TonightView: View {
             Card {
                 Eyebrow(text: "Your night has begun")
                 Text(session.start, style: .timer).font(.system(size: 44, weight: .ultraLight, design: .rounded)).monospacedDigit()
-                Text(session.requestedAudio ? model.recordingStatus : "In-bed marker saved · microphone off").foregroundStyle(SleepiTheme.mint).font(.subheadline)
-                Text("Elapsed time is time since your marker, not time asleep.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                Text(session.requestedAudio ? model.recordingStatus : session.origin == .watch ? "Started on Apple Watch · microphone off" : "In-bed marker saved · microphone off").foregroundStyle(SleepiTheme.mint).font(.subheadline)
+                if !session.requestedAudio, model.audioAvailable {
+                    Button { Task { await model.addSoundToTonight() } } label: { Label("Add sound recording", systemImage: "mic") }.font(.subheadline).disabled(model.isStarting)
+                }
+                Text("Elapsed time is time since your marker, not time asleep. Ending here ends it on your Watch too.").font(.caption).foregroundStyle(SleepiTheme.muted)
                 PrimaryButton(title: model.isStopping ? "Ending…" : "End tonight", symbol: "stop") { Task { await model.stopTonight() } }.disabled(model.isStopping)
             }
         } else {
