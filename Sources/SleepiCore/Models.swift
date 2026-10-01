@@ -171,6 +171,8 @@ public struct AppSettings: Codable, Sendable {
     public var clipBudgetBytes: Int = 300_000_000
     public var morningNotifications: Bool = false
     public var onboardingComplete: Bool = false
+    /// Optional so libraries written before this field still load. Nil means the defaults.
+    public var gentleWake: GentleWakeSettings?
     public init() {}
 }
 
@@ -185,6 +187,8 @@ public struct LocalState: Codable, Sendable {
     public var motionNights: [MotionRecording] = []
     public var wakeReviews: [WakeReview] = []
     public var ignoreWatchRecordsBefore: Date?
+    /// Gentle-wake decision logs from the Watch, newest last. Optional so older libraries still load.
+    public var wakeLogs: [WakeLog]?
     public init() {}
 }
 

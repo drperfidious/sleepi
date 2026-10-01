@@ -41,6 +41,7 @@ public enum SessionSyncEvent: Sendable {
     public var playingID: UUID?
     public var onSessionChanged: (@MainActor (TonightSession?) -> Void)?
     public var onSessionSync: (@MainActor (SessionSyncEvent) -> Void)?
+    public var onGentleWakeChanged: (@MainActor () -> Void)?
     public var onMorning: (@MainActor (SleepNight) async -> Bool)?
     public var requestNotifications: (@MainActor () async -> Bool)?
     public var onSnapshot: (@MainActor (SleepNight?) -> Void)?
@@ -65,6 +66,28 @@ public enum SessionSyncEvent: Sendable {
     }
     /// Usual Apple Watch wake-up per weekday, sent to the Watch to pre-fill gentle wake (Apple's schedule isn't readable).
     public var usualWake: [Int: Int] { UsualWake.byWeekday(nights: nights, now: .now) }
+    public var gentleWake: GentleWakeSettings { state.settings.gentleWake ?? GentleWakeSettings() }
+    public var wakeLogs: [WakeLog] { (state.wakeLogs ?? []).sorted { $0.windowStart > $1.windowStart } }
+    /// An edit made on this iPhone: saved and sent to the Watch.
+    public func setGentleWake(windowMinutes: Int, sensitivity: WakeSensitivity) async {
+        let edited = GentleWakeSettings(windowMinutes: windowMinutes, sensitivity: sensitivity, updatedAt: .now)
+        guard edited.windowMinutes != gentleWake.windowMinutes || edited.sensitivity != gentleWake.sensitivity else { return }
+        state.settings.gentleWake = edited; await persist(); onGentleWakeChanged?()
+    }
+    /// An edit made on the Watch. The newer edit wins, so an older message can't undo a change made here.
+    public func importGentleWake(_ settings: GentleWakeSettings) async {
+        guard !isDemo, canSave, settings.updatedAt > gentleWake.updatedAt, settings.updatedAt <= Date.now.addingTimeInterval(60) else { return }
+        state.settings.gentleWake = GentleWakeSettings(windowMinutes: settings.windowMinutes, sensitivity: settings.sensitivity, updatedAt: settings.updatedAt)
+        await persist()
+    }
+    public func importWakeLog(_ log: WakeLog) async {
+        guard !isDemo, canSave, log.isValid else { return }
+        if let cutoff = state.ignoreWatchRecordsBefore, log.windowStart < cutoff { return }
+        var logs = (state.wakeLogs ?? []).filter { $0.id != log.id }
+        logs.append(log)
+        state.wakeLogs = Array(logs.sorted { $0.windowStart < $1.windowStart }.suffix(30))
+        await persist()
+    }
     public var selectedNight: SleepNight? { nights.first { $0.id == selectedNightID } ?? nights.last }
     public var activeSession: TonightSession? { state.sessions.last { $0.end == nil } }
     public var audioAvailable: Bool { audio != nil && !isDemo }

@@ -141,8 +141,8 @@ public enum GentleWakePolicy {
         return nil
     }
     public static func start(latest: Date, now: Date, windowMinutes: Int = 25) -> Date? {
-        guard (1...29).contains(windowMinutes), latest > now.addingTimeInterval(60) else { return nil }
-        // A 25-minute window leaves scheduling / expiration margin inside Apple's 30m cap.
+        guard GentleWakeSettings.windowRange.contains(windowMinutes), latest > now.addingTimeInterval(60) else { return nil }
+        // Apple caps a smart-alarm session at 30 minutes; the session taps 5 s before it expires if nothing came sooner.
         let start = max(now.addingTimeInterval(5), latest.addingTimeInterval(-Double(windowMinutes) * 60))
         guard start.timeIntervalSince(now) <= 36 * 3600 else { return nil }
         return start

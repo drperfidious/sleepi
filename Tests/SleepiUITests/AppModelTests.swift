@@ -184,3 +184,22 @@ import SleepiCore
     await model.importWatchMarker(id: watchID, start: start, end: .now)
     #expect(model.activeSession == nil); #expect(!audio.isRecording)
 }
+
+@Test @MainActor func gentleWakeSettingsSyncNewerEditWinsAndLogsAreKept() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let model = AppModel(directory: dir); await model.load()
+    var sent = 0; model.onGentleWakeChanged = { sent += 1 }
+    await model.setGentleWake(windowMinutes: 15, sensitivity: .lessMovement)
+    #expect(model.gentleWake.windowMinutes == 15); #expect(sent == 1)
+    await model.importGentleWake(GentleWakeSettings(windowMinutes: 30, updatedAt: .now.addingTimeInterval(-3600)))
+    #expect(model.gentleWake.windowMinutes == 15) // an older Watch edit can't undo a newer iPhone one
+    await model.importGentleWake(GentleWakeSettings(windowMinutes: 20, updatedAt: .now))
+    #expect(model.gentleWake.windowMinutes == 20)
+    var log = WakeLog(windowStart: .now.addingTimeInterval(-1500), latest: .now, windowMinutes: 25, sensitivity: .standard)
+    log.outcome = .deadline
+    await model.importWakeLog(log); await model.importWakeLog(log)
+    #expect(model.wakeLogs.count == 1)
+    let reopened = AppModel(directory: dir); await reopened.load()
+    #expect(reopened.wakeLogs.count == 1); #expect(reopened.gentleWake.windowMinutes == 20)
+}

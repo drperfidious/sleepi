@@ -77,7 +77,8 @@ private func sample(_ a: Double, _ b: Double, _ stage: SleepStage = .core, sourc
 }
 @Test func gentleWakeRejectsPastAndOverlongWindows() {
     #expect(GentleWakePolicy.start(latest: origin, now: origin) == nil)
-    #expect(GentleWakePolicy.start(latest: origin.addingTimeInterval(3600), now: origin, windowMinutes: 30) == nil)
+    #expect(GentleWakePolicy.start(latest: origin.addingTimeInterval(3600), now: origin, windowMinutes: 31) == nil)
+    #expect(GentleWakePolicy.start(latest: origin.addingTimeInterval(3600), now: origin, windowMinutes: 30) == origin.addingTimeInterval(1800))
     #expect(GentleWakePolicy.start(latest: origin.addingTimeInterval(40 * 3600), now: origin) == nil)
     #expect(GentleWakePolicy.start(latest: origin.addingTimeInterval(3600), now: origin) == origin.addingTimeInterval(2100))
 }
@@ -155,4 +156,50 @@ private func sample(_ a: Double, _ b: Double, _ stage: SleepStage = .core, sourc
     let early = GentleWakePolicy.suggestion(now: origin.addingTimeInterval(86400 + 2 * 3600), picked: [:], usual: [4: 6 * 60 + 45], calendar: utc)
     #expect(early?.date == origin.addingTimeInterval(86400 + 6 * 3600 + 45 * 60))
     #expect(GentleWakePolicy.suggestion(now: evening, picked: [:], usual: [:], calendar: utc) == nil)
+}
+
+private func detect(_ sensitivity: WakeSensitivity = .standard, movingSeconds: [ClosedRange<Double>], until: Double = 1500) -> (due: Double?, detector: WakeWindowDetector) {
+    // 10 Hz readings over a 25-minute window. "Moving" alternates the magnitude by 0.1 g on every reading.
+    var detector = WakeWindowDetector(windowStart: origin, latest: origin.addingTimeInterval(1500), sensitivity: sensitivity)
+    var t = 0.0, flip = false
+    while t < until {
+        let moving = movingSeconds.contains { $0.contains(t) }
+        flip.toggle()
+        if detector.add(magnitude: moving ? (flip ? 1.1 : 1.0) : 1.0, at: origin.addingTimeInterval(t)) { return (t, detector) }
+        t += 0.1
+    }
+    return (nil, detector)
+}
+
+@Test func gentleWakeIgnoresStillnessAndOneTwitchOrRollOver() {
+    #expect(detect(movingSeconds: []).due == nil)
+    #expect(detect(movingSeconds: [60...61]).due == nil)          // a twitch
+    #expect(detect(movingSeconds: [60...68]).due == nil)          // one roll-over, even a big one
+    #expect(detect(.lessMovement, movingSeconds: [60...68]).due == nil)
+}
+
+@Test func gentleWakeTapsOnSustainedRestlessnessAndLogsEveryEpoch() {
+    let rolling = detect(movingSeconds: [600...720])                // two minutes of tossing from minute 10
+    #expect(rolling.due != nil); #expect(rolling.due! < 700)       // within about a minute and a half
+    #expect(rolling.detector.epochs.count >= 20); #expect(rolling.detector.epochs.contains { $0.restless })
+    // Short movements in two consecutive epochs count for "less movement" but not for "more movement".
+    let bursts: [ClosedRange<Double>] = [600...601.5, 630...631.5, 660...661.5]
+    #expect(detect(.lessMovement, movingSeconds: bursts).due != nil)
+    #expect(detect(.moreMovement, movingSeconds: bursts).due == nil)
+}
+
+@Test func gentleWakeSettingsClampToApplesSessionCapAndNewerEditWins() {
+    #expect(GentleWakeSettings(windowMinutes: 45).windowMinutes == 30)
+    #expect(GentleWakeSettings(windowMinutes: 1).windowMinutes == 5)
+    let old = GentleWakeSettings(windowMinutes: 20, updatedAt: origin), new = GentleWakeSettings(windowMinutes: 10, updatedAt: origin.addingTimeInterval(5))
+    #expect(old.merged(with: new) == new); #expect(new.merged(with: old) == new)
+}
+
+@Test func librariesWrittenBeforeNewOptionalFieldsStillLoad() throws {
+    // Regression guard: adding non-optional fields to LocalState would make existing libraries unreadable.
+    var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(LocalState())) as! [String: Any]
+    legacy.removeValue(forKey: "wakeLogs")
+    var settings = legacy["settings"] as! [String: Any]; settings.removeValue(forKey: "gentleWake"); legacy["settings"] = settings
+    let decoded = try JSONDecoder().decode(LocalState.self, from: JSONSerialization.data(withJSONObject: legacy))
+    #expect(decoded.wakeLogs == nil); #expect(decoded.settings.gentleWake == nil)
 }

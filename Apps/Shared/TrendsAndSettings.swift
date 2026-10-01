@@ -139,6 +139,7 @@ struct SettingsView: View {
                 Eyebrow(text: "A shortcut to tonight")
                 Text("In Shortcuts, create a Sleep or Focus automation and add “Open Tonight in sleepi.” It opens the choice screen. Confirm microphone recording on the iPhone.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
+            GentleWakeCard(model: model)
             Card {
                 Eyebrow(text: "A thoughtful experiment")
                 Text("Watch motion and gentle wake are experiments you switch on per night in the Watch app; both start off. Sleep-stage correction, SRI, a recovery score, and cloud sync are not enabled in this build.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
@@ -173,5 +174,44 @@ struct OnboardingView: View {
             }.disabled(page == 2 && !acknowledged)
             if page == 1 { Button("Set up Health later") { page = 2 }.frame(maxWidth: .infinity) }
         }.padding(30).frame(minWidth: 340, minHeight: 600).background(SleepiTheme.background).foregroundStyle(SleepiTheme.ink).preferredColorScheme(.dark).tint(SleepiTheme.lavender)
+    }
+}
+
+/// Window and sensitivity for the Watch's gentle wake, synced both ways, plus the nightly decision logs for tuning.
+struct GentleWakeCard: View {
+    @Bindable var model: AppModel
+    @State private var window = 25.0
+    @State private var sensitivity = WakeSensitivity.standard
+    var body: some View {
+        Card {
+            Eyebrow(text: "Gentle wake on Apple Watch")
+            Text("Window · \(Int(window)) min before your time").font(.subheadline)
+            Slider(value: $window, in: Double(GentleWakeSettings.windowRange.lowerBound)...Double(GentleWakeSettings.windowRange.upperBound), step: 5) { editing in if !editing { save() } }
+            Text("Up to 30 minutes: Apple runs a Watch smart alarm for at most 30 minutes. Changes sync with your Watch.").font(.caption).foregroundStyle(SleepiTheme.muted)
+            Picker("Movement needed", selection: $sensitivity) {
+                ForEach(WakeSensitivity.allCases, id: \.self) { Text($0.title).tag($0) }
+            }.pickerStyle(.segmented).onChange(of: sensitivity) { save() }
+            Text("How much sustained restlessness it waits for before tapping. A twitch or a single roll-over never counts; otherwise it taps at your chosen time. Switch it on each night on the Watch.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3)
+            ForEach(model.wakeLogs.prefix(5)) { log in
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(log.windowStart.formatted(date: .abbreviated, time: .shortened)).font(.caption)
+                        Text(Self.outcome(log)).font(.caption2).foregroundStyle(SleepiTheme.muted)
+                    }
+                    Spacer()
+                    ShareLink(item: log.csv, preview: SharePreview("sleepi gentle-wake log")) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share this gentle-wake log")
+                }
+            }
+        }
+        .onAppear { window = Double(model.gentleWake.windowMinutes); sensitivity = model.gentleWake.sensitivity }
+    }
+    private func save() { Task { await model.setGentleWake(windowMinutes: Int(window), sensitivity: sensitivity) } }
+    static func outcome(_ log: WakeLog) -> String {
+        let time = log.tappedAt?.formatted(date: .omitted, time: .shortened) ?? ""
+        switch log.outcome {
+        case .movement: return "Tapped at \(time) after sustained movement · \(log.sensitivity.title.lowercased())"
+        case .deadline: return "Tapped at \(time), your chosen time"
+        case .endedEarly, nil: return "Ended before a tap"
+        }
     }
 }

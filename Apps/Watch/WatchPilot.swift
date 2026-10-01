@@ -13,6 +13,10 @@ import SleepiCore
     @Published var status = "Apple’s sleep tracking stays in charge."
     @Published var alerting = false
     @Published var exporting = false
+    /// Window and sensitivity, kept in sync with the iPhone (the newer edit wins).
+    @Published private(set) var wakeSettings = GentleWakeSettings()
+    private var detector: WakeWindowDetector?
+    private var wakeLog: WakeLog?
     /// Usual wake-up per weekday from the iPhone's Apple Watch history, and the times you confirmed per weekday.
     /// Wake times only, kept on this Watch; Apple's sleep schedule itself isn't readable by apps.
     private var usualWake: [Int: Int] = [:]
@@ -21,8 +25,6 @@ import SleepiCore
     private var runtime: WKExtendedRuntimeSession?
     private var motion = CMMotionManager()
     private var timer: Timer?
-    private var previousAcceleration: CMAcceleration?
-    private var movementHits = 0
     private var recordURL: URL
     var canExport: Bool { state.recordStart != nil }
 
@@ -37,11 +39,25 @@ import SleepiCore
             start = state.markerStart
         } catch { status = "Watch storage unavailable. \(error.localizedDescription)" }
         loadWakeTimes()
+        if let data = UserDefaults.standard.data(forKey: "gentleWakeSettings"), let saved = try? JSONDecoder().decode(GentleWakeSettings.self, from: data) { wakeSettings = saved }
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
     }
     /// Re-read every time the start sheet opens, so a changed pick or a fresh iPhone history is used, not a stale value.
     func suggestedWake(now: Date = .now) -> WakeSuggestion? {
         GentleWakePolicy.suggestion(now: now, picked: picked, usual: usualWake)
+    }
+    /// An edit made on this Watch: saved here and queued for the iPhone.
+    func updateWakeSettings(windowMinutes: Int, sensitivity: WakeSensitivity) {
+        let edited = GentleWakeSettings(windowMinutes: windowMinutes, sensitivity: sensitivity, updatedAt: .now)
+        guard edited.windowMinutes != wakeSettings.windowMinutes || edited.sensitivity != wakeSettings.sensitivity else { return }
+        applyWakeSettings(edited)
+        if WCSession.isSupported(), WCSession.default.activationState == .activated, let data = try? JSONEncoder().encode(edited) {
+            WCSession.default.transferUserInfo(["schema": 1, "action": "gentleWakeSettings", "settings": data])
+        }
+    }
+    private func applyWakeSettings(_ settings: GentleWakeSettings) {
+        wakeSettings = settings
+        if let data = try? JSONEncoder().encode(settings) { UserDefaults.standard.set(data, forKey: "gentleWakeSettings") }
     }
     func rememberPick(_ date: Date) {
         let calendar = Calendar.current
@@ -74,10 +90,11 @@ import SleepiCore
         let now = Date.now
         var scheduledStart: Date?
         if let latest {
-            guard let scheduled = GentleWakePolicy.start(latest: latest, now: now) else { status = "Choose a wake time at least a few minutes ahead and within 36 hours."; return false }
+            guard let scheduled = GentleWakePolicy.start(latest: latest, now: now, windowMinutes: wakeSettings.windowMinutes) else { status = "Choose a wake time at least a few minutes ahead and within 36 hours."; return false }
             scheduledStart = scheduled
         }
-        state = PilotState(id: UUID(), markerStart: now, recordStart: recordMotion ? now : nil, latest: latest)
+        state = PilotState(id: UUID(), markerStart: now, recordStart: recordMotion ? now : nil, latest: latest,
+                           sensitivity: latest == nil ? nil : wakeSettings.sensitivity)
         guard save() else { return false }
         start = now
         if recordMotion, CMSensorRecorder.isAccelerometerRecordingAvailable() {
@@ -113,41 +130,57 @@ import SleepiCore
             // scheduled session as an active-app call; whether this background call is honoured is a device check.
             extendedRuntimeSession.invalidate(); status = "Night already ended; gentle wake cancelled."; return
         }
-        previousAcceleration = nil; movementHits = 0
+        let sensitivity = state.sensitivity ?? wakeSettings.sensitivity
+        let windowStart = Date.now
+        detector = WakeWindowDetector(windowStart: windowStart, latest: latest, sensitivity: sensitivity)
+        wakeLog = WakeLog(windowStart: windowStart, latest: latest, windowMinutes: Int((latest.timeIntervalSince(windowStart) / 60).rounded()), sensitivity: sensitivity)
         let deadline = min(latest, (extendedRuntimeSession.expirationDate ?? latest).addingTimeInterval(-5))
         timer?.invalidate()
-        if deadline <= .now { alert(); return }
-        timer = Timer.scheduledTimer(withTimeInterval: deadline.timeIntervalSinceNow, repeats: false) { [weak self] _ in Task { @MainActor in self?.alert() } }
+        if deadline <= .now { alert(.deadline); return }
+        timer = Timer.scheduledTimer(withTimeInterval: deadline.timeIntervalSinceNow, repeats: false) { [weak self] _ in Task { @MainActor in self?.alert(.deadline) } }
         if motion.isAccelerometerAvailable {
-            motion.accelerometerUpdateInterval = 0.5
+            // 10 Hz: enough to count movement per 30-second epoch; WakeWindowDetector decides when restlessness is sustained.
+            motion.accelerometerUpdateInterval = 0.1
             motion.startAccelerometerUpdates(to: .main) { [weak self] data, _ in
-                guard let a = data?.acceleration else { return }
-                Task { @MainActor in
+                guard let data else { return }
+                MainActor.assumeIsolated {
                     guard let self, !self.alerting else { return }
-                    if let old = self.previousAcceleration {
-                        let delta = sqrt(pow(a.x - old.x, 2) + pow(a.y - old.y, 2) + pow(a.z - old.z, 2))
-                        self.movementHits = delta > 0.12 ? self.movementHits + 1 : 0
-                        if self.movementHits >= 3 { self.alert() }
-                    }
-                    self.previousAcceleration = a
+                    let a = data.acceleration
+                    if self.detector?.add(magnitude: sqrt(a.x * a.x + a.y * a.y + a.z * a.z), at: .now) == true { self.alert(.movement) }
                 }
             }
         }
     }
-    func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) { alert() }
+    func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) { alert(.deadline) }
     func extendedRuntimeSession(_ extendedRuntimeSession: WKExtendedRuntimeSession, didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason, error: (any Error)?) {
         timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates(); runtime = nil; alerting = false
+        finishWakeLog()
         state.latest = nil; _ = save()
         status = error == nil ? "Gentle-wake session ended. Apple’s alarm is unchanged." : "Gentle wake was interrupted. Rely on your Clock alarm."
     }
-    private func alert() {
+    private func alert(_ outcome: WakeLog.Outcome) {
         guard let runtime, runtime.state == .running, !alerting else { return }
         alerting = true; motion.stopAccelerometerUpdates(); timer?.invalidate()
+        wakeLog?.tappedAt = .now; wakeLog?.outcome = outcome
         // A nil handler repeats every 3 s until dismissed. Every 10 s keeps it a nudge; Apple's Clock alarm is the alarm.
         // @Sendable keeps the handler unisolated: WatchKit may call it off the main thread, where a main-actor
         // closure would trip Swift 6's isolation check (the same crash the iPhone audio tap had).
         runtime.notifyUser(hapticType: .notification) { @Sendable _ in 10 }
         status = "Gentle wake · tap Dismiss to stop."
+    }
+    /// Saves tonight's inputs and decision and queues them for the iPhone, where the log can be shared for tuning.
+    private func finishWakeLog() {
+        guard var log = wakeLog else { return }
+        wakeLog = nil
+        log.epochs = detector?.epochs ?? []; detector = nil
+        if log.outcome == nil { log.outcome = .endedEarly }
+        guard log.isValid, let data = try? JSONEncoder().encode(log) else { return }
+        let url = recordURL.deletingLastPathComponent().appendingPathComponent("wake-\(log.id).json")
+        do {
+            try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            try LocalRepository.protect(url)
+            WCSession.default.transferFile(url, metadata: ["schema": 1, "kind": "wakeLog"])
+        } catch { status = "Couldn’t save tonight’s gentle-wake log." }
     }
     func exportMotion() {
         guard !exporting, let from = state.recordStart else { return }
@@ -203,7 +236,9 @@ import SleepiCore
         guard value["schema"] as? Int == 1 else { return }
         let seconds = value["asleep"] as? Double; let date = value["date"] as? Double
         let usual = Self.weekdayMinutes(value["usualWake"] as? [String: Any])
+        let settings = (value["gentleWake"] as? Data).flatMap { try? JSONDecoder().decode(GentleWakeSettings.self, from: $0) }
         Task { @MainActor in
+            if let settings, settings.updatedAt > self.wakeSettings.updatedAt { self.applyWakeSettings(GentleWakeSettings(windowMinutes: settings.windowMinutes, sensitivity: settings.sensitivity, updatedAt: settings.updatedAt)) }
             // A night without history (or a failed Health read) on iPhone keeps the last known times instead of erasing them.
             if !usual.isEmpty {
                 self.usualWake = usual
@@ -248,6 +283,7 @@ private struct PilotState: Codable {
     var recordStart: Date?
     var latest: Date?
     var recordEnd: Date?
+    var sensitivity: WakeSensitivity?
     var startedOnPhone: Bool?
 }
 
