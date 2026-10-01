@@ -70,6 +70,15 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 
 - **Gentle wake trigger, window and logs:** the trigger used to fire on the first ~1.5 s of wrist movement. `WakeWindowDetector` now scores 10 Hz movement in 30-second epochs with a decaying four-epoch weight, in the style of Cole–Kripke and Sadeh actigraphy. It taps only when at least 2 of the last 3 epochs are restless and each of those has movement of its own. A twitch or a single roll-over never triggers it. The threshold relaxes to half by the chosen time, and the chosen time is the fallback. Heart rate isn't used, because watch sampling during sleep is every few minutes. Sensitivity (More / Standard / Less movement) and the window (5–30 min; Apple caps a smart-alarm session at 30) sync between iPhone and Watch, and the newer edit wins. Every session writes a `WakeLog` of epochs and the decision, sent to the iPhone and shareable as CSV from Settings. Thresholds are starting points to tune from those logs. "Record motion" was renamed "Save overnight motion": it only controls the whole-night recorder, and gentle wake samples motion on its own.
 
+- **Record-keeping corrections from `08-sleep-corrections-evidence.md` §5** (copied here with `07-sleep-stage-accuracy.md`):
+  1. Overlapping Apple Watch records were already counted once. Nights now log the overlapping time and Apple's raw as-written sum; the reconciliation rule is documented in `NightBuilder`. "Later record wins" isn't possible because HealthKit exposes no save time.
+  2. `NightCorrections.watchStop`: sleep and heart rate ending within 10 minutes of each other, then 45+ minutes of an open Tonight night, leaves the night out of averages, with an "Include anyway" switch. Without a Tonight session it's a note only, shown when the stop is 45+ minutes before the usual wake-up for that weekday.
+  3. `InBedEstimate`: time in bed, time to fall asleep and efficiency from a finished Tonight session, labelled as estimates.
+  4. Each sample's watchOS version gives a per-night major version. Trends draw a break line and average only nights since the last change.
+  5. The "likely awake" proposals (`WakeExperiment`) are removed. Sound events are listed as plain timeline events in the raw night view.
+  6. Trends show a "vs Apple" line naming the left-out and merged nights. The corrected history is recomputed from Apple's records on each read (91 days); it isn't stored separately.
+  7. A Deep sleep info line with the audit's exact wording.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |

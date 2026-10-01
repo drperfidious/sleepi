@@ -32,7 +32,8 @@ import SleepiUI
             raw.compactMap { value in
                 guard let sample = value as? HKCategorySample, let stage = Self.stage(sample.value) else { return nil }
                 return SleepSample(id: sample.uuid, start: sample.startDate, end: sample.endDate, stage: stage,
-                                   source: sample.sourceRevision.source.bundleIdentifier, product: sample.sourceRevision.productType ?? "unknown")
+                                   source: sample.sourceRevision.source.bundleIdentifier, product: sample.sourceRevision.productType ?? "unknown",
+                                   osVersion: { let v = sample.sourceRevision.operatingSystemVersion; return "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)" }())
             }
         }
         // Vitals are only shown overnight. Query the padded sleep windows instead of 91 days of all-day heart rate,

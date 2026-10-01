@@ -287,26 +287,40 @@ public enum SessionSyncEvent: Sendable {
               let session = state.sessions.last(where: { $0.start >= night.windowStart && $0.start < first }) else { return nil }
         return first.timeIntervalSince(session.start)
     }
-    public func wakeCandidates(for night: SleepNight) -> [WakeCandidate] {
-        let motion = state.motionNights.filter { $0.start < night.windowEnd && $0.end > night.windowStart }.flatMap(\.epochs)
-        let heart = snapshot.vitals.filter { $0.kind == .heartRate }.sorted { $0.date < $1.date }
-        let epochs = motion.filter { $0.start >= night.windowStart && $0.start < night.windowEnd }.map { epoch in
-            let stage = night.segments.first { $0.start <= epoch.start && $0.end >= epoch.start.addingTimeInterval(30) }?.stage
-            let recent = heart.last { $0.date <= epoch.start && epoch.start.timeIntervalSince($0.date) <= 90 }
-            let prior = heart.last { $0.date < epoch.start.addingTimeInterval(-90) && epoch.start.timeIntervalSince($0.date) <= 300 }
-            let rise = recent.flatMap { r in prior.map { r.value - $0.value } }
-            // Speech or coughing near the epoch is the plan's second signal. Snoring implies sleep, and "not me" clips are excluded.
-            let heard = state.sounds.contains { event in
-                (event.kind == .speech || event.kind == .coughing) && !event.notMe
-                    && event.end >= epoch.start.addingTimeInterval(-30) && event.start <= epoch.start.addingTimeInterval(60)
-            }
-            return WakeEvidence(start: epoch.start, stage: stage, movement: epoch.sampleCount >= 1000 ? epoch.meanMovement : nil, heartRateRise: rise, speechOrRustling: heard)
-        }
-        return WakeExperiment.candidates(epochs)
+    /// The Tonight session behind a night, from its start to its end (or now while it's still open).
+    public func tonightSession(for night: SleepNight) -> DateInterval? {
+        guard let first = night.firstSleep, let last = night.lastSleep,
+              let session = state.sessions.last(where: { $0.start < last && ($0.end ?? .now) > first && ($0.end ?? .now) > $0.start }) else { return nil }
+        return DateInterval(start: session.start, end: max(session.start, session.end ?? .now))
     }
-    public func reviewWake(_ candidate: WakeCandidate, confirmed: Bool) async {
-        state.wakeReviews.removeAll { $0.start == candidate.start && $0.end == candidate.end }
-        state.wakeReviews.append(WakeReview(start: candidate.start, end: candidate.end, confirmed: confirmed)); await persist()
+    public func inBed(for night: SleepNight) -> InBedEstimate? {
+        guard let session = tonightSession(for: night),
+              state.sessions.contains(where: { $0.start == session.start && $0.end != nil }) else { return nil }
+        return InBedEstimate(night: night, session: session)
+    }
+    public func watchStop(for night: SleepNight) -> WatchStop? {
+        let heart = snapshot.vitals.filter { $0.kind == .heartRate }.map(\.end)
+        let weekday = night.lastSleep.map { Calendar.current.component(.weekday, from: $0) }
+        return NightCorrections.watchStop(night: night, heartRateTimes: heart, session: tonightSession(for: night),
+                                          usualWakeMinutes: weekday.flatMap { usualWake[$0] })
+    }
+    public func isIncludedAnyway(_ night: SleepNight) -> Bool { state.includedIncompleteNights?.contains(night.id) == true }
+    public func setIncludedAnyway(_ night: SleepNight, _ include: Bool) async {
+        var included = Set(state.includedIncompleteNights ?? [])
+        if include { included.insert(night.id) } else { included.remove(night.id) }
+        state.includedIncompleteNights = included.sorted(); await persist()
+    }
+    /// Nights left out of averages: Tonight nights where the Watch stopped recording, unless included anyway.
+    public var leftOutNights: Set<Date> {
+        Set(nights.filter { night in watchStop(for: night)?.excludesFromAverages == true && !isIncludedAnyway(night) }.map(\.id))
+    }
+    /// Averages and trends never compare across a watchOS major-version change, where Apple's algorithm may differ.
+    public var lastVersionBreak: Date? { NightCorrections.versionBreaks(nights).last }
+    /// Nights that feed averages and trends: corrected history (Apple's data, reconciled, minus incomplete nights),
+    /// limited to the current watchOS version.
+    public var trendNights: [SleepNight] {
+        let leftOut = leftOutNights, versionStart = lastVersionBreak ?? .distantPast
+        return nights.filter { !leftOut.contains($0.id) && $0.windowStart >= versionStart }
     }
     public func deleteLocalData() async {
         await stopTonight(); audio?.stopPlayback(); playingID = nil

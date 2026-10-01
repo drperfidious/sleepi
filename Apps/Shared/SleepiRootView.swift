@@ -106,14 +106,35 @@ struct LastNightView: View {
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                if night.conflictingSeconds > 0 { Text("Overlapping sources disagree for \(DurationText.hoursMinutes(night.conflictingSeconds)). Those stages are left unspecified or unknown.").font(.caption).foregroundStyle(SleepiTheme.muted) }
+                Text("Apple’s own testing says its most common mistake is calling deep sleep core sleep. Trust the trend over any one night.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                if night.overlapSeconds > 0 { Text("Apple Watch wrote overlapping records for \(DurationText.hoursMinutes(night.overlapSeconds)). Each minute is counted once\(night.conflictingSeconds > 0 ? "; \(DurationText.hoursMinutes(night.conflictingSeconds)) where they disagreed is shown as Asleep or left unknown" : "").").font(.caption).foregroundStyle(SleepiTheme.muted) }
                 Button { showRaw = true } label: { HStack { Text("Explore the timeline"); Spacer(); Image(systemName: "arrow.up.right") }.font(.system(size: 11)).foregroundStyle(SleepiTheme.lavender) }.buttonStyle(.plain)
             }
             HStack(alignment: .top, spacing: 12) {
                 miniMetric("First sleep", value: night.firstSleep?.formatted(date: .omitted, time: .shortened) ?? "—", symbol: "moon")
                 miniMetric("Last sleep", value: night.lastSleep?.formatted(date: .omitted, time: .shortened) ?? "—", symbol: "sun.horizon")
             }
-            if let latency = model.markerToFirstSleep(for: night) {
+            if let stop = model.watchStop(for: night) {
+                Card {
+                    Eyebrow(text: stop.excludesFromAverages ? "Incomplete night" : "Possible gap")
+                    if stop.excludesFromAverages {
+                        Text("Watch stopped recording at \(stop.at.formatted(date: .omitted, time: .shortened)).").font(.subheadline)
+                        Text("Sleep and heart-rate records ended together while your night was still open, so this night is left out of averages and trends.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                        Toggle("Include anyway", isOn: Binding(get: { model.isIncludedAnyway(night) }, set: { value in Task { await model.setIncludedAnyway(night, value) } })).font(.caption)
+                    } else {
+                        Text("Watch data stops at \(stop.at.formatted(date: .omitted, time: .shortened)), sleep and heart rate together, well before your usual wake-up. If you were still in bed, this night is incomplete. It still counts, because an early wake looks the same.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                    }
+                }
+            }
+            if let bed = model.inBed(for: night) {
+                Card {
+                    Eyebrow(text: "In bed · estimates from Tonight")
+                    DetailLine(title: "Time in bed", value: DurationText.hoursMinutes(bed.timeInBed))
+                    DetailLine(title: "Time to fall asleep", value: DurationText.hoursMinutes(bed.toFallAsleep))
+                    DetailLine(title: "Sleep efficiency", value: "\(Int((bed.efficiency * 100).rounded()))%")
+                    Text("From your Tonight start and end to Apple’s sleep. Apple counts some still-awake time as sleep, so these lean optimistic.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                }
+            } else if let latency = model.markerToFirstSleep(for: night) {
                 Text("First detected sleep came \(DurationText.hoursMinutes(latency)) after your in-bed marker. An estimate, not measured sleep latency.")
                     .font(.caption).foregroundStyle(SleepiTheme.muted)
             }
@@ -122,17 +143,6 @@ struct LastNightView: View {
                 miniMetric("Awake in the night", value: woke.count == 0 ? "None recorded" : "\(woke.count)× · \(Int(woke.seconds / 60))m", symbol: "eye")
                 let heard = model.selectedSounds.filter { !$0.notMe }
                 miniMetric("Sounds kept", value: heard.isEmpty ? "—" : "\(heard.count) · \(heard.filter { $0.kind == .snoring }.count) snoring", symbol: "waveform")
-            }
-            ForEach(model.wakeCandidates(for: night)) { candidate in
-                Card {
-                    Eyebrow(text: "Watch pilot · unvalidated")
-                    Text("Awake around \(candidate.start.formatted(date: .omitted, time: .shortened))?").font(.title3)
-                    Text("Two signals suggest a possible waking. Apple’s sleep totals above are unchanged. Your answer is saved for review; it does not train the algorithm.").font(.caption).foregroundStyle(SleepiTheme.muted)
-                    if let review = model.state.wakeReviews.first(where: { $0.start == candidate.start && $0.end == candidate.end }) {
-                        Text(review.confirmed ? "You confirmed this waking" : "You rejected this suggestion").font(.caption).foregroundStyle(SleepiTheme.mint)
-                    }
-                    HStack { Button("Yes, I remember") { Task { await model.reviewWake(candidate, confirmed: true) } }; Spacer(); Button("I don’t think so") { Task { await model.reviewWake(candidate, confirmed: false) } } }.font(.caption)
-                }
             }
             Card {
                 HStack { Eyebrow(text: "Overnight, quietly"); Spacer(); Text("APPLE HEALTH").font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(SleepiTheme.muted) }
@@ -211,6 +221,12 @@ struct RawNightView: View {
         SheetFrame(title: "Your timeline") {
             Text("Apple Watch’s estimated stages. Gaps are unknown. sleepi does not replace or correct these records.").font(.subheadline).foregroundStyle(SleepiTheme.muted)
             DetailLine(title: "Recorded awake", value: DurationText.hoursMinutes(night.awakeSeconds))
+            DetailLine(title: "Apple’s raw record", value: "\(DurationText.hoursMinutes(night.rawAsleepSeconds)) asleep as written")
+            if night.overlapSeconds > 0 { DetailLine(title: "Overlapping records merged", value: DurationText.hoursMinutes(night.overlapSeconds)) }
+            if let major = night.osMajor { DetailLine(title: "Recorded with", value: "watchOS \(major)") }
+            ForEach(model.state.sounds.filter { $0.start >= night.windowStart && $0.start < night.windowEnd }.sorted { $0.start < $1.start }) { event in
+                DetailLine(title: "\(event.start.formatted(date: .omitted, time: .shortened)) · \(event.kind.title)", value: event.notMe ? "Not me" : "Sound")
+            }
             DetailLine(title: "Watch sources", value: "\(night.sourceCount)")
             ForEach(VitalKind.allCases, id: \.self) { kind in
                 if let metric = model.vital(kind, night: night) {

@@ -5,9 +5,17 @@ import SleepiCore
 struct TrendsView: View {
     @Bindable var model: AppModel
     @State private var days = 30
-    private var nights: [SleepNight] {
-        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: .now)!
-        return model.nights.filter { $0.windowEnd >= cutoff }
+    private var cutoff: Date { Calendar.current.date(byAdding: .day, value: -days, to: .now)! }
+    /// Corrected history: Apple's nights, reconciled, minus nights the Watch stopped recording, on the current watchOS.
+    private var nights: [SleepNight] { model.trendNights.filter { $0.windowEnd >= cutoff } }
+    /// The chart also shows nights before a watchOS change, with a break line, but averages never cross it.
+    private var chartNights: [SleepNight] { model.nights.filter { $0.windowEnd >= cutoff && !model.leftOutNights.contains($0.id) } }
+    private var corrected: CorrectedSummary? {
+        let start = max(cutoff, model.lastVersionBreak ?? .distantPast)
+        return CorrectedSummary(nights: model.nights.filter { $0.windowEnd >= start }, leftOut: model.leftOutNights)
+    }
+    private func dates(_ ids: [Date]) -> String {
+        ids.map { $0.addingTimeInterval(86400).formatted(.dateTime.month(.abbreviated).day()) }.joined(separator: ", ")
     }
     var body: some View {
         PageHeading(eyebrow: "Look at the longer story", title: "Patterns, without pressure.", subtitle: "One night is a moment. A few weeks tell you more.")
@@ -20,13 +28,25 @@ struct TrendsView: View {
                 Text(DurationText.hoursMinutes(nights.reduce(0) { $0 + $1.asleepSeconds } / Double(nights.count))).font(.system(size: 34, weight: .light, design: .rounded))
                 Text("Average across \(nights.count) recorded nights").font(.caption).foregroundStyle(SleepiTheme.muted)
                 Chart {
-                    ForEach(nights) { n in
+                    ForEach(chartNights) { n in
                         BarMark(x: .value("Night", n.lastSleep ?? n.windowEnd, unit: .day), y: .value("Hours", n.asleepSeconds / 3600)).foregroundStyle(SleepiTheme.lavender.gradient).cornerRadius(3)
                     }
+                    if let versionBreak = model.lastVersionBreak, versionBreak > cutoff {
+                        RuleMark(x: .value("watchOS change", versionBreak.addingTimeInterval(86400), unit: .day)).foregroundStyle(SleepiTheme.muted).lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                    }
                     RuleMark(y: .value("Target", model.state.settings.targetHours)).foregroundStyle(SleepiTheme.muted.opacity(0.4)).lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
-                }.chartYScale(domain: 0...max(10, (nights.map { $0.asleepSeconds / 3600 }.max() ?? 0) + 1)).chartYAxis { AxisMarks(position: .leading) }.frame(height: 170)
+                }.chartYScale(domain: 0...max(10, (chartNights.map { $0.asleepSeconds / 3600 }.max() ?? 0) + 1)).chartYAxis { AxisMarks(position: .leading) }.frame(height: 170)
                     .accessibilityLabel("Sleep duration chart for \(nights.count) recorded nights")
                 Text("Dashed line: your \(model.state.settings.targetHours.formatted())h target. No data is filled into missing nights.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                if let c = corrected {
+                    let parts = [c.leftOut.isEmpty ? nil : "\(c.leftOut.count) night\(c.leftOut.count == 1 ? "" : "s") the Watch stopped recording left out (\(dates(c.leftOut)))",
+                                 c.merged.isEmpty ? nil : "\(c.merged.count) night\(c.merged.count == 1 ? "" : "s") with overlapping records merged (\(dates(c.merged)))"].compactMap { $0 }
+                    Text("vs Apple: \(DurationText.hoursMinutes(c.averageAsleep)) vs Apple’s raw record \(DurationText.hoursMinutes(c.appleRawAverage))\(parts.isEmpty ? ". No differences." : ": " + parts.joined(separator: "; ") + ".")")
+                        .font(.caption).foregroundStyle(SleepiTheme.muted)
+                }
+                if let versionBreak = model.lastVersionBreak, versionBreak > cutoff {
+                    Text("watchOS changed on \(versionBreak.addingTimeInterval(86400).formatted(.dateTime.month(.abbreviated).day())), which can change Apple’s sleep staging. Averages use nights since then.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                }
             }
             Card {
                 Eyebrow(text: "A rhythm of your own")
@@ -38,7 +58,7 @@ struct TrendsView: View {
                 } else { Text("Seven recorded nights make a start.").font(.title3); Text("Schedule variation appears when there’s enough data. Widely scattered schedules may not have a meaningful average.").font(.caption).foregroundStyle(SleepiTheme.muted) }
             }
             Card {
-                let shortfall = Insights.shortfall(nights: model.nights, targetHours: model.state.settings.targetHours, now: .now)
+                let shortfall = Insights.shortfall(nights: model.trendNights, targetHours: model.state.settings.targetHours, now: .now)
                 Eyebrow(text: "Room for more rest")
                 Text(DurationText.hoursMinutes(shortfall.seconds)).font(.system(size: 30, weight: .light, design: .rounded))
                 Text("Below your target across \(shortfall.recordedNights) of the last 14 nights.").font(.subheadline)

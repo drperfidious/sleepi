@@ -109,20 +109,6 @@ import SleepiCore
     #expect(model.vital(.wristTemperature, night: night)?.count == 1)
 }
 
-@Test @MainActor func heardSpeechCountsAsTheSecondWakeSignal() async throws {
-    let model = AppModel(demo: true)
-    let night = model.nights.last!
-    let base = night.segments.first { $0.stage.isAsleep && $0.seconds >= 120 }!.start
-    model.state.motionNights = [MotionRecording(id: UUID(), start: base, end: base.addingTimeInterval(60),
-                                                epochs: [0, 30].map { MotionEpoch(start: base.addingTimeInterval($0), meanMovement: 0.3, sampleCount: 1500) })]
-    #expect(model.wakeCandidates(for: night).isEmpty) // Movement alone is not enough.
-    var speech = SoundEvent(start: base.addingTimeInterval(10), end: base.addingTimeInterval(20), kind: .speech, confidence: 0.9, levelDBFS: -30)
-    model.state.sounds = [speech]
-    #expect(model.wakeCandidates(for: night).count == 1)
-    speech.notMe = true; model.state.sounds = [speech]
-    #expect(model.wakeCandidates(for: night).isEmpty)
-}
-
 @Test @MainActor func failedLibraryLoadCanBeRetried() async throws {
     // A launch without a scene can run before first unlock; the scene's later load() must be able to recover.
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -202,4 +188,19 @@ import SleepiCore
     #expect(model.wakeLogs.count == 1)
     let reopened = AppModel(directory: dir); await reopened.load()
     #expect(reopened.wakeLogs.count == 1); #expect(reopened.gentleWake.windowMinutes == 20)
+}
+
+@Test @MainActor func nightTheWatchStoppedIsLeftOutOfTrendsUnlessIncluded() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let model = AppModel(directory: dir); await model.load()
+    let bed = Calendar.current.startOfDay(for: .now).addingTimeInterval(-2 * 3600), stop = bed.addingTimeInterval(4 * 3600) // 22:00 to 02:00
+    model.nights = NightBuilder.build(samples: [SleepSample(start: bed.addingTimeInterval(600), end: stop, stage: .core)])
+    model.snapshot.vitals = [VitalReading(kind: .heartRate, date: stop.addingTimeInterval(-120), value: 55)]
+    var night = TonightSession(start: bed, requestedAudio: false); night.end = bed.addingTimeInterval(9 * 3600); model.state.sessions = [night]
+    let stopped = try #require(model.nights.last)
+    #expect(model.watchStop(for: stopped)?.excludesFromAverages == true)
+    #expect(model.trendNights.isEmpty)
+    await model.setIncludedAnyway(stopped, true)
+    #expect(model.trendNights.count == 1)
 }

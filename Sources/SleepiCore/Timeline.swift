@@ -24,10 +24,14 @@ public enum NightBuilder {
             let relevant = accepted.filter { $0.start < w.end && $0.end > w.start }
             let boundaries = Set(relevant.flatMap { [max($0.start, w.start), min($0.end, w.end)] }).sorted()
             var segments: [StageSegment] = []
-            var conflicts = 0.0
+            var conflicts = 0.0, overlap = 0.0
+            // Reconciliation rule (deterministic): each instant is counted once. Records that agree merge; records
+            // that disagree between asleep stages become "Asleep" without a stage; asleep vs awake stays unknown.
+            // There's no public save time for "latest record wins", so no record is preferred over another.
             for (start, end) in zip(boundaries, boundaries.dropFirst()) where end > start {
                 let active = relevant.filter { $0.start < end && $0.end > start }
                 guard !active.isEmpty else { continue } // Missing is unknown, never awake or asleep.
+                if active.count > 1 { overlap += end.timeIntervalSince(start) }
                 let stages = Set(active.map(\.stage))
                 let selected: SleepStage
                 if stages.count == 1 { selected = active[0].stage }
@@ -42,50 +46,12 @@ public enum NightBuilder {
                 } else { segments.append(StageSegment(start: start, end: end, stage: selected)) }
             }
             guard segments.contains(where: { $0.stage.isAsleep }) else { return nil }
+            let raw = relevant.filter(\.stage.isAsleep).reduce(0.0) { $0 + min($1.end, w.end).timeIntervalSince(max($1.start, w.start)) }
+            let majors = relevant.compactMap { $0.osVersion?.split(separator: ".").first.flatMap { Int($0) } }
+            let major = Dictionary(grouping: majors, by: { $0 }).max { ($0.value.count, $0.key) < ($1.value.count, $1.key) }?.key
             return SleepNight(windowStart: w.start, windowEnd: w.end, segments: segments,
-                              sourceCount: Set(relevant.map { $0.source + $0.product }).count, conflictingSeconds: conflicts)
+                              sourceCount: Set(relevant.map { $0.source + $0.product }).count, conflictingSeconds: conflicts,
+                              overlapSeconds: overlap, rawAsleepSeconds: raw, osMajor: major)
         }.sorted { $0.windowStart < $1.windowStart }
-    }
-}
-
-public struct WakeEvidence: Sendable {
-    public var start: Date
-    public var stage: SleepStage?
-    public var movement: Double?
-    public var heartRateRise: Double?
-    public var speechOrRustling: Bool
-    public init(start: Date, stage: SleepStage?, movement: Double?, heartRateRise: Double? = nil, speechOrRustling: Bool = false) {
-        self.start = start; self.stage = stage; self.movement = movement
-        self.heartRateRise = heartRateRise; self.speechOrRustling = speechOrRustling
-    }
-}
-
-public struct WakeCandidate: Identifiable, Codable, Sendable {
-    public var start: Date
-    public var end: Date
-    public var reason: String
-    public var id: Date { start }
-}
-
-public enum WakeExperiment {
-    /// Unvalidated proposal generator. Never subtracts from Apple's total or writes stages.
-    /// Requires contiguous 30s movement epochs plus another signal. Missing is not zero.
-    public static func candidates(_ epochs: [WakeEvidence], movementThreshold: Double = 0.12) -> [WakeCandidate] {
-        var output: [WakeCandidate] = []
-        var run: [WakeEvidence] = []
-        func flush() {
-            if run.count >= 2, let first = run.first, let last = run.last {
-                output.append(WakeCandidate(start: first.start, end: last.start.addingTimeInterval(30), reason: "Movement with a second signal · unvalidated"))
-            }
-            run.removeAll()
-        }
-        for epoch in epochs.sorted(by: { $0.start < $1.start }) {
-            let eligible = epoch.stage?.isAsleep == true && (epoch.movement ?? -.infinity) >= movementThreshold
-                && ((epoch.heartRateRise ?? -.infinity) >= 8 || epoch.speechOrRustling)
-            if let last = run.last, abs(epoch.start.timeIntervalSince(last.start) - 30) > 0.01 { flush() }
-            if eligible { run.append(epoch) } else { flush() }
-        }
-        flush()
-        return output
     }
 }

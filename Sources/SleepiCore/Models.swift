@@ -22,10 +22,12 @@ public struct SleepSample: Codable, Identifiable, Equatable, Sendable {
     public var stage: SleepStage
     public var source: String
     public var product: String
+    /// The writing device's OS version ("26.6.0"), which tells which Apple staging algorithm produced the sample.
+    public var osVersion: String?
     public init(id: UUID = UUID(), start: Date, end: Date, stage: SleepStage,
-                source: String = "com.apple.health", product: String = "Watch") {
+                source: String = "com.apple.health", product: String = "Watch", osVersion: String? = nil) {
         self.id = id; self.start = start; self.end = end; self.stage = stage
-        self.source = source; self.product = product
+        self.source = source; self.product = product; self.osVersion = osVersion
     }
     public var isAppleWatch: Bool { source.hasPrefix("com.apple.") && product.hasPrefix("Watch") }
 }
@@ -45,6 +47,12 @@ public struct SleepNight: Identifiable, Codable, Equatable, Sendable {
     public var segments: [StageSegment]
     public var sourceCount: Int
     public var conflictingSeconds: Double
+    /// Time covered by more than one Apple Watch record (duplicate or overlapping writes), counted once here.
+    public var overlapSeconds: Double = 0
+    /// Apple's raw record: asleep sample durations added up as written, so overlapping writes count twice.
+    public var rawAsleepSeconds: Double = 0
+    /// Major watchOS version of the night's records. A change means Apple's staging algorithm may have changed.
+    public var osMajor: Int?
     public var id: Date { windowStart }
     public var firstSleep: Date? { segments.first(where: { $0.stage.isAsleep })?.start }
     public var lastSleep: Date? { segments.last(where: { $0.stage.isAsleep })?.end }
@@ -187,6 +195,8 @@ public struct LocalState: Codable, Sendable {
     public var motionNights: [MotionRecording] = []
     public var wakeReviews: [WakeReview] = []
     public var ignoreWatchRecordsBefore: Date?
+    /// Nights the Watch stopped recording that you chose to include in averages anyway. Optional for older libraries.
+    public var includedIncompleteNights: [Date]?
     /// Gentle-wake decision logs from the Watch, newest last. Optional so older libraries still load.
     public var wakeLogs: [WakeLog]?
     public init() {}

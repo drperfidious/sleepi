@@ -12,8 +12,10 @@ private func sample(_ a: Double, _ b: Double, _ stage: SleepStage = .core, sourc
     #expect(NightBuilder.build(samples: [sample(0, 3600, .core, source: "app.other"), sample(0, 3600, .inBed)], calendar: utc).isEmpty)
 }
 @Test func deduplicatesOverlapsWithoutCountingTwice() {
+    // Two overlapping writes from the Watch: sleepi counts each minute once and logs the merge; Apple's raw sum doesn't.
     let night = NightBuilder.build(samples: [sample(0, 3600), sample(1800, 5400)], calendar: utc)[0]
     #expect(night.asleepSeconds == 5400)
+    #expect(night.overlapSeconds == 1800); #expect(night.rawAsleepSeconds == 7200)
 }
 @Test func conflictingSleepWakeRemainsUnknown() {
     let night = NightBuilder.build(samples: [sample(0, 3600), sample(600, 1200, .awake)], calendar: utc)[0]
@@ -52,15 +54,6 @@ private func sample(_ a: Double, _ b: Double, _ stage: SleepStage = .core, sourc
     let shortfall = Insights.shortfall(nights: nights, targetHours: 8, now: origin.addingTimeInterval(7200), calendar: utc)
     #expect(shortfall.recordedNights == 1)
     #expect(shortfall.seconds == 7 * 3600) // No fabricated debt for thirteen missing nights.
-}
-@Test func wakeExperimentNeedsContiguousIndependentEvidence() {
-    func epoch(_ offset: Double, movement: Double? = 0.2, hr: Double? = 12) -> WakeEvidence {
-        WakeEvidence(start: origin.addingTimeInterval(offset), stage: .core, movement: movement, heartRateRise: hr)
-    }
-    #expect(WakeExperiment.candidates([epoch(0), epoch(30)]).count == 1)
-    #expect(WakeExperiment.candidates([epoch(0), epoch(60)]).isEmpty)
-    #expect(WakeExperiment.candidates([epoch(0, movement: nil), epoch(30)]).isEmpty)
-    #expect(WakeExperiment.candidates([epoch(0, hr: nil), epoch(30, hr: nil)]).isEmpty)
 }
 @Test func retentionProtectsStarsButHonorsHardCap() {
     var star = SoundEvent(start: origin, end: origin, kind: .snoring, confidence: 0.9, levelDBFS: -25, fileName: "star.m4a", byteCount: 300)
@@ -202,4 +195,39 @@ private func detect(_ sensitivity: WakeSensitivity = .standard, movingSeconds: [
     var settings = legacy["settings"] as! [String: Any]; settings.removeValue(forKey: "gentleWake"); legacy["settings"] = settings
     let decoded = try JSONDecoder().decode(LocalState.self, from: JSONSerialization.data(withJSONObject: legacy))
     #expect(decoded.wakeLogs == nil); #expect(decoded.settings.gentleWake == nil)
+}
+
+private func versioned(_ a: Double, _ b: Double, _ os: String) -> SleepSample {
+    SleepSample(start: origin.addingTimeInterval(a), end: origin.addingTimeInterval(b), stage: .core, osVersion: os)
+}
+
+@Test func watchStopIsFlaggedOnlyWhenSleepAndHeartRateEndTogetherWhileTheNightIsOpen() {
+    // Sleep 00:30–04:12; heart rate also ends at 04:10.
+    let night = NightBuilder.build(samples: [sample(1800, 4 * 3600 + 720)], calendar: utc)[0]
+    let stopped = [origin.addingTimeInterval(4 * 3600 + 600)]
+    let tonight = DateInterval(start: origin.addingTimeInterval(1200), end: origin.addingTimeInterval(7 * 3600))
+    let stop = NightCorrections.watchStop(night: night, heartRateTimes: stopped, session: tonight, usualWakeMinutes: nil, calendar: utc)
+    #expect(stop == WatchStop(at: origin.addingTimeInterval(4 * 3600 + 720), excludesFromAverages: true))
+    // Heart rate carried on after the last sleep (a real wake-up): not flagged.
+    #expect(NightCorrections.watchStop(night: night, heartRateTimes: stopped + [origin.addingTimeInterval(5 * 3600)], session: tonight, usualWakeMinutes: nil, calendar: utc) == nil)
+    // Ended Tonight soon after: not open long enough.
+    #expect(NightCorrections.watchStop(night: night, heartRateTimes: stopped, session: DateInterval(start: tonight.start, end: origin.addingTimeInterval(4 * 3600 + 1800)), usualWakeMinutes: nil, calendar: utc) == nil)
+    // No Tonight session: a note only, and only when the stop is well before the usual wake-up.
+    #expect(NightCorrections.watchStop(night: night, heartRateTimes: stopped, session: nil, usualWakeMinutes: 7 * 60, calendar: utc)?.excludesFromAverages == false)
+    #expect(NightCorrections.watchStop(night: night, heartRateTimes: stopped, session: nil, usualWakeMinutes: nil, calendar: utc) == nil)
+}
+
+@Test func versionChangeBreaksTrendsAndInBedEstimatesUseTonight() {
+    let nights = NightBuilder.build(samples: [versioned(3600, 7200, "26.6.0"), versioned(86400 + 3600, 86400 + 7200, "27.0.1")], calendar: utc)
+    #expect(NightCorrections.versionBreaks(nights) == [nights[1].windowStart])
+    let night = NightBuilder.build(samples: [sample(1800, 7200)], calendar: utc)[0]
+    let bed = InBedEstimate(night: night, session: DateInterval(start: origin, end: origin.addingTimeInterval(9000)))
+    #expect(bed?.timeInBed == 9000); #expect(bed?.toFallAsleep == 1800); #expect(bed?.efficiency == 5400.0 / 9000)
+}
+
+@Test func correctedSummaryNamesEveryDifferenceFromApple() {
+    let nights = NightBuilder.build(samples: [sample(0, 3600), sample(1800, 5400), sample(86400, 86400 + 3600)], calendar: utc)
+    let summary = CorrectedSummary(nights: nights, leftOut: [nights[1].id])!
+    #expect(summary.nights == 1); #expect(summary.leftOut == [nights[1].id]); #expect(summary.merged == [nights[0].id])
+    #expect(summary.averageAsleep == 5400); #expect(summary.appleRawAverage == (7200 + 3600) / 2)
 }
