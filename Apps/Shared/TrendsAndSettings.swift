@@ -141,7 +141,7 @@ struct SettingsView: View {
             }
             Card {
                 Eyebrow(text: "A thoughtful experiment")
-                Text("Watch motion and gentle wake are gated device pilots. Sleep-stage correction, SRI, a recovery score, and cloud sync are not enabled in this build.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                Text("Watch motion and gentle wake are experiments you switch on per night in the Watch app; both start off. Sleep-stage correction, SRI, a recovery score, and cloud sync are not enabled in this build.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
                 Text("sleepi supports reflection on sleep. Sound labels and sleep stages are estimates, not diagnoses.").font(.caption).foregroundStyle(SleepiTheme.muted)
             }
             Button("Delete all local sleepi data", role: .destructive) { deleteConfirmation = true }.disabled(model.isDemo)

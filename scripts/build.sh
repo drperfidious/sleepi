@@ -19,6 +19,3 @@ run() { # label, xcodebuild arguments…
 }
 run ios -scheme Sleepi -destination 'generic/platform=iOS Simulator' -derivedDataPath "$derived"
 run watch -scheme SleepiWatch -destination 'generic/platform=watchOS Simulator' -derivedDataPath "$derived"
-# The gated Watch pilot must compile too, even though no configuration enables it.
-run watch-pilot -scheme SleepiWatch -destination 'generic/platform=watchOS Simulator' -derivedDataPath "$derived-pilot" \
-  'SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG SLEEPI_DEVICE_PILOT'

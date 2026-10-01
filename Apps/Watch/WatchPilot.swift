@@ -7,11 +7,6 @@ import SleepiCore
 
 @MainActor final class WatchPilot: NSObject, ObservableObject, @preconcurrency WKExtendedRuntimeSessionDelegate, WCSessionDelegate {
     static let shared = WatchPilot()
-    #if SLEEPI_DEVICE_PILOT
-    let pilotEnabled = true
-    #else
-    let pilotEnabled = false
-    #endif
     @Published var start: Date?
     @Published var summary = "Your nights, on iPhone"
     @Published var summaryDate: Date?
@@ -39,19 +34,20 @@ import SleepiCore
         } catch { status = "Watch storage unavailable. \(error.localizedDescription)" }
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
     }
-    @discardableResult func begin(latest: Date?) -> Bool {
+    /// Gentle wake and motion recording are per-night experiments: both are off unless switched on in the start sheet.
+    @discardableResult func begin(latest: Date?, recordMotion: Bool) -> Bool {
         guard start == nil else { return false }
         guard WKApplication.shared().applicationState == .active else { status = "Open sleepi to confirm a night."; return false }
         let now = Date.now
         var scheduledStart: Date?
         if let latest {
-            guard pilotEnabled, let scheduled = GentleWakePolicy.start(latest: latest, now: now) else { status = "Choose a wake time within the next 36 hours."; return false }
+            guard let scheduled = GentleWakePolicy.start(latest: latest, now: now) else { status = "Choose a wake time at least a few minutes ahead and within 36 hours."; return false }
             scheduledStart = scheduled
         }
-        state = PilotState(id: UUID(), markerStart: now, recordStart: pilotEnabled ? now : nil, latest: latest)
+        state = PilotState(id: UUID(), markerStart: now, recordStart: recordMotion ? now : nil, latest: latest)
         guard save() else { return false }
         start = now
-        if pilotEnabled, CMSensorRecorder.isAccelerometerRecordingAvailable() {
+        if recordMotion, CMSensorRecorder.isAccelerometerRecordingAvailable() {
             CMSensorRecorder().recordAccelerometer(forDuration: 12 * 3600)
             status = "Motion requested · coverage must be checked in the morning."
         } else { status = "In-bed marker saved. Start sound on your iPhone." }
@@ -78,7 +74,6 @@ import SleepiCore
     }
     func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
         runtime = extendedRuntimeSession
-        guard pilotEnabled else { extendedRuntimeSession.invalidate(); status = "Pilot disabled; scheduled session cancelled."; return }
         guard let latest = state.latest else {
             // The night was ended after the app was terminated, so end() had no session handle to cancel.
             // Previously this fell through to `.now` and buzzed 25 minutes early. Apple documents invalidate() on a
@@ -122,7 +117,7 @@ import SleepiCore
         status = "Gentle wake · tap Dismiss to stop."
     }
     func exportMotion() {
-        guard pilotEnabled, !exporting, let from = state.recordStart else { return }
+        guard !exporting, let from = state.recordStart else { return }
         let to = min(state.recordEnd ?? .now, from.addingTimeInterval(12 * 3600))
         guard to > from, Date.now.timeIntervalSince(from) < 3 * 86400 else { status = "This motion recording is no longer available."; return }
         exporting = true; let id = state.id

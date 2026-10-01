@@ -35,7 +35,7 @@ xcodebuild -project Sleepi.xcodeproj -scheme SleepiWatch \
 
 The project is generated from `project.yml` with XcodeGen 2.46.0. It is included so XcodeGen isn't required merely to open/build it. After changing the spec, run `scripts/generate_project.sh`. The generator is a development tool, not an app dependency.
 
-Do not add `SLEEPI_DEVICE_PILOT` to release settings. A reviewer may enable it in a local Watch Debug configuration when executing the documented hardware protocol. Never disable Apple's tracking or alarm to accommodate sleepi.
+Watch gentle wake and motion recording are per-night experiments: switches in the Watch start sheet that are off every time it opens. Never disable Apple's tracking or alarm to accommodate sleepi.
 
 ## Layout
 

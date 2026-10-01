@@ -64,6 +64,8 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 - **Crash when recording started:** the audio tap closure inherited main-actor isolation from `AudioRecorder`, and Swift 6 asserted it on Core Audio's real-time thread on the first buffer (confirmed in the built binary: the closure called `swift_task_isCurrentExecutor` → `swift_task_reportUnexpectedExecutor`). The tap is now built in a nonisolated helper, guarded by `check_invariants.py`. The Watch haptic repeat handler is `@Sendable` for the same reason.
 - **iPhone and Watch nights out of sync:** a Watch start used to arrive on the iPhone as an already-ended marker. Nights now sync both ways through queued `transferUserInfo`. A Watch start shows as an active night on the iPhone (microphone off; "Add sound recording" asks on the iPhone). An iPhone start shows on the Watch, but motion and gentle wake never turn on from a phone message. Ending on either device ends it on both, including iPhone sound. If both devices start before hearing from each other, they stay one linked night. A Watch-started night survives an iPhone app restart; an iPhone recording doesn't.
 
+- **Gentle wake and motion recording now in every build, off by default:** Randy asked to test gentle wake while awake, so the `SLEEPI_DEVICE_PILOT` compile flag (mentioned in `docs/HANDOFF.md` and `docs/PLAN.md`) is gone. Both are per-night switches in the Watch start sheet that reset to off every time it opens, enforced by `check_invariants.py`. Gentle wake taps the wrist on movement in the 25 minutes before the chosen time, or at that time; there's no sound and no Clock alarm change.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |
@@ -79,14 +81,14 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 ## Build and test evidence
 
 - **Toolchain:** Xcode 27.2 beta (27B5028f) at `~/Downloads/Xcode-beta.app`, used through `DEVELOPER_DIR`. `xcode-select` still points at the Command Line Tools.
-- **`DEVELOPER_DIR=…/Xcode-beta.app/Contents/Developer scripts/build.sh`** (new): the iOS app, its widgets and the embedded Watch app with its widgets, the Watch scheme alone, and the Watch scheme with `SLEEPI_DEVICE_PILOT` all succeed. A generic iOS device build (unsigned) also succeeds. The baseline fails this build with findings 1 and 2.
+- **`DEVELOPER_DIR=…/Xcode-beta.app/Contents/Developer scripts/build.sh`** (new): the iOS app, its widgets and the embedded Watch app with its widgets, and the Watch scheme alone both succeed. A generic iOS device build (unsigned) also succeeds. The baseline fails this build with findings 1 and 2.
 - **`scripts/test.sh`:** 29 tests pass and the architecture checks pass.
 - **Simulator:** installed on the iPhone 17 simulator (iOS 27.2); it launches to onboarding without crashing. The UI wasn't driven further, and unsigned builds carry no HealthKit entitlement, so this isn't a Health test.
 
 ## Next steps
 
 1. **Signing (done):** Randy's team is committed in both the Xcode project and `project.yml`, so regenerating keeps it. Only identifiers are committed. A signed Release build (Apple Development, HealthKit and background-delivery entitlements) was installed on Randy's iPhone 14 Pro Max (iOS 27.0) and launched once. Randy's Watch (watchOS 26.6) is now registered on the team, and the iPhone build carries a Watch app signed for it plus the new icon. Installing from the iPhone's Watch app (Available Apps) failed (silently, then with "integrity can't be verified") because a command-line install of the iPhone app doesn't copy the Watch app's and Watch widgets' provisioning profiles onto the iPhone. Installing them fixes it: `xcrun devicectl device profile install --device <iphone> <SleepiWatch.app/embedded.mobileprovision> <SleepiWatchWidgets.appex/embedded.mobileprovision>`. Xcode does this itself when it runs the app. A direct install from the Mac also works: `xcrun devicectl device install app --device <watch> SleepiWatch.app`, with Developer Mode on (Watch Settings > Privacy & Security, at the very bottom) and the Watch unlocked so the developer disk image can mount. Xcode with the SleepiWatch scheme and the Watch as destination uses the same route. Pairing the Sleepi scheme with the Watch gives a misleading "supported platforms" error; the target settings are correct, so leave them. Merged into `main`.
-2. **Device order (unchanged from `docs/PLAN.md`):** baseline nights, then passive nights (no sound, pilot off), then sound, then the Watch pilot. For the pilot, add `SLEEPI_DEVICE_PILOT` to the SleepiWatch Debug "Active Compilation Conditions" locally and don't commit it.
+2. **Device order (unchanged from `docs/PLAN.md`):** baseline nights, then passive nights (no sound, Watch experiments off), then sound, then the Watch experiments. They are switched on per night in the Watch start sheet; see the follow-up note.
 3. **Device checks this audit added:**
    - whether background `invalidate()` cancels a stale gentle wake (finding 10);
    - whether recording survives lock, charger and Bluetooth changes (finding 7);

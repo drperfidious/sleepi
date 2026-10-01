@@ -105,7 +105,7 @@ targets:
         WKCompanionAppBundleIdentifier: app.sleepi.ios
         WKRunsIndependentlyOfCompanionApp: false
         WKBackgroundModes: [alarm]
-        NSMotionUsageDescription: During an explicitly enabled device pilot, sleepi records motion to study possible waking. It never starts a workout.
+        NSMotionUsageDescription: When you switch on motion recording for a night, sleepi records wrist motion to compare with Apple’s sleep estimates. It never starts a workout.
         CFBundleURLTypes:
           - CFBundleURLName: app.sleepi.tonight
             CFBundleURLSchemes: [sleepi]

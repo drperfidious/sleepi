@@ -17,6 +17,10 @@ for path in files:
 recorder = (root / 'Apps/iOS/AudioRecorder.swift').read_text()
 # The audio tap runs on a real-time thread; built inside the @MainActor class it crashed on Swift 6's isolation check.
 assert recorder.count('installTap(onBus') == 1 and 'nonisolated private static func installTap' in recorder, 'audio tap must be built nonisolated'
+watch_home = (root / 'Apps/Watch/SleepiWatchApp.swift').read_text()
+# Plain nights stay plain: gentle wake and motion recording are off each time the start sheet opens.
+assert '@State private var gentle = false' in watch_home and '@State private var recordMotion = false' in watch_home
+assert 'if open { gentle = false; recordMotion = false }' in watch_home, 'Watch experiments must reset to off each night'
 health = (root / 'Apps/iOS/HealthKitReader.swift').read_text()
 assert 'requestAuthorization(toShare: [], read: read)' in health
 assert not re.search(r'\bstore\.(save|delete|startWorkoutSession)\s*\(', health)
@@ -35,7 +39,6 @@ objects = project['objects']
 targets = [v for v in objects.values() if v['isa'] == 'PBXNativeTarget']
 assert {v['name'] for v in targets} == {'Sleepi', 'SleepiWatch', 'SleepiWidgets', 'SleepiWatchWidgets'}
 for settings in [v.get('buildSettings', {}) for v in objects.values()]:
-    assert 'SLEEPI_DEVICE_PILOT' not in settings.get('SWIFT_ACTIVE_COMPILATION_CONDITIONS', ''), 'Pilot must default off'
     assert '26.0' == settings.get('IPHONEOS_DEPLOYMENT_TARGET', '26.0')
     assert '26.0' == settings.get('WATCHOS_DEPLOYMENT_TARGET', '26.0')
-print(f'Architecture checks passed: {len(files)} Swift files, 4 native targets, no Health writes/workouts/network clients, Watch pilot off.')
+print(f'Architecture checks passed: {len(files)} Swift files, 4 native targets, no Health writes/workouts/network clients, Watch experiments off by default.')

@@ -32,7 +32,7 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSMotionUsageDescription</key>
-	<string>During an explicitly enabled device pilot, sleepi records motion to study possible waking. It never starts a workout.</string>
+	<string>When you switch on motion recording for a night, sleepi records wrist motion to compare with Apple’s sleep estimates. It never starts a workout.</string>
 	<key>WKApplication</key>
 	<true/>
 	<key>WKBackgroundModes</key>

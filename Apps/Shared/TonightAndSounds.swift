@@ -47,8 +47,8 @@ struct StartSheet: View {
                 Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Your microphone listens on this iPhone. Short clips may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved. Sounds from other apps keep playing, and sleepi may hear them.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
             Card {
-                Label("Gentle wake · Watch pilot", systemImage: "applewatch").font(.subheadline)
-                Text("Choose a fresh wake time and confirm it in the Watch app. It is an experiment, available only when the device pilot is enabled. Keep Apple’s alarm set.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                Label("Gentle wake · on Apple Watch", systemImage: "applewatch").font(.subheadline)
+                Text("An experiment you switch on when you start the night on your Watch: a wrist tap, no sound, in the 25 minutes before the time you pick. Keep Apple’s alarm set; it stays the real alarm.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
             PrimaryButton(title: model.isStarting ? "Starting…" : sound ? "Start with microphone" : "Save my in-bed time", symbol: sound ? "mic" : "moon") { Task { await model.startTonight(sound: sound) } }.disabled(model.isStarting)
         }
