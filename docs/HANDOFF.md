@@ -2,6 +2,8 @@
 
 2026-10-01 · sleepi 0.1 · Initial implementation from a references-only directory.
 
+> Audited the same day: see `refs/06-claude-audit.md`. The destination builds described as outstanding below now compile with Xcode 27.2 beta after two compile fixes; device gates are unchanged.
+
 ## Outcome and validation boundary
 
 There is now a Swift 6 codebase, a generated Xcode project with four native targets, and a working Mac preview of the shared iPhone interface. The revised architecture preserves Apple's sleep records and alarm. The original refs were read and left intact; `refs/05-validation-and-decisions.md` records the findings that were confirmed, narrowed or rejected.

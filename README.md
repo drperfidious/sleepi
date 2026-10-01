@@ -2,10 +2,11 @@
 
 A calm iPhone and Apple Watch sleep companion. Apple supplies the estimated sleep stages. sleepi adds local notes, understandable trends and optional sound highlights, without writing to Health or replacing Clock alarms.
 
-**Status:** initial native implementation and runnable Mac UI preview. Core/UI/audio modules compile locally; the iPhone/Watch destination builds and overnight trials remain unverified because this Mac has no Xcode installation. Watch motion and gentle wake default off.
+**Status:** initial native implementation and runnable Mac UI preview. All four targets compile with Xcode 27.2 beta (simulator and unsigned device builds, see the audit); signed installation and every overnight trial remain unverified. Watch motion and gentle wake default off.
 
 ## Start here
 
+- [Claude audit](refs/06-claude-audit.md): findings, fixes and build evidence from the 2026-10-01 audit.
 - [Fable handoff](docs/HANDOFF.md): evidence, limitations and review priorities.
 - [Validated findings](refs/05-validation-and-decisions.md): confirmed, qualified and falsified reference claims.
 - [Revised plan](docs/PLAN.md): implementation boundaries and device gates.
@@ -15,6 +16,7 @@ A calm iPhone and Apple Watch sleep companion. Apple supplies the estimated slee
 
 ```sh
 ./scripts/test.sh
+DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer ./scripts/build.sh  # all four native targets, unsigned
 ./scripts/preview.sh
 ```
 
