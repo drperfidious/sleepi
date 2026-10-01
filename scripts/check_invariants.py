@@ -20,7 +20,7 @@ assert recorder.count('installTap(onBus') == 1 and 'nonisolated private static f
 watch_home = (root / 'Apps/Watch/SleepiWatchApp.swift').read_text()
 # Plain nights stay plain: gentle wake and motion recording are off each time the start sheet opens.
 assert '@State private var gentle = false' in watch_home and '@State private var recordMotion = false' in watch_home
-assert 'if open { gentle = false; recordMotion = false }' in watch_home, 'Watch experiments must reset to off each night'
+assert re.search(r'onChange\(of: showStart\)[\s\S]{0,120}?guard open else \{ return \}\s*gentle = false; recordMotion = false', watch_home), 'Watch experiments must reset to off each night'
 health = (root / 'Apps/iOS/HealthKitReader.swift').read_text()
 assert 'requestAuthorization(toShare: [], read: read)' in health
 assert not re.search(r'\bstore\.(save|delete|startWorkoutSession)\s*\(', health)

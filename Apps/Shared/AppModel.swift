@@ -63,6 +63,8 @@ public enum SessionSyncEvent: Sendable {
             } catch { self.error = "Local storage is unavailable: \(error.localizedDescription)" }
         }
     }
+    /// Usual Apple Watch wake-up per weekday, sent to the Watch to pre-fill gentle wake (Apple's schedule isn't readable).
+    public var usualWake: [Int: Int] { UsualWake.byWeekday(nights: nights, now: .now) }
     public var selectedNight: SleepNight? { nights.first { $0.id == selectedNightID } ?? nights.last }
     public var activeSession: TonightSession? { state.sessions.last { $0.end == nil } }
     public var audioAvailable: Bool { audio != nil && !isDemo }

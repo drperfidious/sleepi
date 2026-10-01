@@ -11,10 +11,11 @@ import SleepiUI
     func activate() {
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
     }
-    func sendSummary(_ night: SleepNight?) {
+    func sendSummary(_ night: SleepNight?, usualWake: [Int: Int]) {
         guard WCSession.isSupported(), WCSession.default.activationState == .activated else { return }
         var value: [String: Any] = ["schema": 1]
         if let night { value["asleep"] = night.asleepSeconds; value["date"] = night.lastSleep?.timeIntervalSince1970 }
+        if !usualWake.isEmpty { value["usualWake"] = Dictionary(uniqueKeysWithValues: usualWake.map { (String($0.key), $0.value) }) }
         try? WCSession.default.updateApplicationContext(value)
     }
     /// Queued, guaranteed delivery: a night started or ended here starts or ends it on the Watch, even if the Watch
@@ -33,7 +34,7 @@ import SleepiUI
         WCSession.default.transferUserInfo(info)
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
-        Task { @MainActor in self.sendSummary(self.model?.nights.last) }
+        Task { @MainActor in self.sendSummary(self.model?.nights.last, usualWake: self.model?.usualWake ?? [:]) }
     }
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) { session.activate() }

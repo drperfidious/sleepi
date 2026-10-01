@@ -66,6 +66,8 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 
 - **Gentle wake and motion recording now in every build, off by default:** Randy asked to test gentle wake while awake, so the `SLEEPI_DEVICE_PILOT` compile flag (mentioned in `docs/HANDOFF.md` and `docs/PLAN.md`) is gone. Both are per-night switches in the Watch start sheet that reset to off every time it opens, enforced by `check_invariants.py`. Gentle wake taps the wrist on movement in the 25 minutes before the chosen time, or at that time; there's no sound and no Clock alarm change.
 
+- **Gentle wake time pre-filled:** Apple's sleep schedule and Clock alarms have no public API (also checked against the iOS 27.2 SDK), so the Watch suggests the time instead. It uses the time you last confirmed for that weekday (within 28 days), else your usual Apple Watch wake-up for it. That usual time comes from the iPhone's last 5 weeks: 2 mornings of that weekday, or 3 of its day type. With neither, nothing is pre-filled. The suggestion is recomputed each time the start sheet opens, and the sheet says where the time came from (`UsualWake`, `GentleWakePolicy.suggestion`).
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |

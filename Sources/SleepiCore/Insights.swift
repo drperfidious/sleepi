@@ -86,7 +86,60 @@ public enum Insights {
     }
 }
 
+/// Apple's sleep schedule and Clock alarms have no public API, so the gentle-wake time is suggested instead:
+/// the time you last confirmed for that weekday, else your usual Apple Watch wake-up for it.
+public enum UsualWake {
+    /// Typical wake-up clock time (minutes after midnight) per weekday (1 = Sunday … 7 = Saturday) from Apple Watch
+    /// nights in the last `days`. A weekday with fewer than 2 nights uses its day type (Mon–Fri or weekend) when that
+    /// has at least 3. Days with neither stay absent rather than guessed.
+    public static func byWeekday(nights: [SleepNight], now: Date, days: Int = 35, calendar: Calendar = .current) -> [Int: Int] {
+        let oldest = now.addingTimeInterval(-Double(days) * 86400)
+        var samples: [Int: [Double]] = [:]
+        for night in nights {
+            guard let wake = night.lastSleep, wake >= oldest, wake <= now else { continue }
+            samples[calendar.component(.weekday, from: wake), default: []].append(Insights.clockMinutes(wake, calendar: calendar))
+        }
+        func weekend(_ day: Int) -> Bool { day == 1 || day == 7 }
+        var result: [Int: Int] = [:]
+        for day in 1...7 {
+            let own = samples[day] ?? []
+            let values = own.count >= 2 ? own : (1...7).filter { weekend($0) == weekend(day) }.flatMap { samples[$0] ?? [] }
+            guard own.count >= 2 || values.count >= 3, let value = circularMedian(values) else { continue }
+            result[day] = Int(value.rounded()) % 1440
+        }
+        return result
+    }
+    /// Median around the circular mean, so a late morning or a midnight wrap doesn't drag the result.
+    static func circularMedian(_ values: [Double]) -> Double? {
+        guard let mean = Insights.circularMean(values), let median = Insights.median(values.map { mean + Insights.circularDifference($0, mean) }) else { return nil }
+        let wrapped = median.truncatingRemainder(dividingBy: 1440)
+        return wrapped < 0 ? wrapped + 1440 : wrapped
+    }
+}
+
+public enum WakeSuggestionSource: Equatable, Sendable { case lastPick, usualWake }
+
+public struct WakeSuggestion: Equatable, Sendable {
+    public var date: Date
+    public var source: WakeSuggestionSource
+}
+
 public enum GentleWakePolicy {
+    /// The next wake time to pre-fill: today's or tomorrow's (whichever comes first and is still ahead), from the time
+    /// last confirmed for that weekday within 28 days, else the usual wake-up for it. Nil when neither is known.
+    public static func suggestion(now: Date, picked: [Int: (minutes: Int, at: Date)], usual: [Int: Int], calendar: Calendar = .current) -> WakeSuggestion? {
+        let today = calendar.startOfDay(for: now)
+        for offset in 0...1 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            let weekday = calendar.component(.weekday, from: day)
+            let recent = picked[weekday].flatMap { now.timeIntervalSince($0.at) <= 28 * 86400 ? $0.minutes : nil }
+            guard let minutes = recent ?? usual[weekday], (0..<1440).contains(minutes),
+                  let date = calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day),
+                  date > now.addingTimeInterval(10 * 60) else { continue }
+            return WakeSuggestion(date: date, source: recent != nil ? .lastPick : .usualWake)
+        }
+        return nil
+    }
     public static func start(latest: Date, now: Date, windowMinutes: Int = 25) -> Date? {
         guard (1...29).contains(windowMinutes), latest > now.addingTimeInterval(60) else { return nil }
         // A 25-minute window leaves scheduling / expiration margin inside Apple's 30m cap.

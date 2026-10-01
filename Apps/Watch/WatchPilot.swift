@@ -13,6 +13,10 @@ import SleepiCore
     @Published var status = "Apple’s sleep tracking stays in charge."
     @Published var alerting = false
     @Published var exporting = false
+    /// Usual wake-up per weekday from the iPhone's Apple Watch history, and the times you confirmed per weekday.
+    /// Wake times only, kept on this Watch; Apple's sleep schedule itself isn't readable by apps.
+    private var usualWake: [Int: Int] = [:]
+    private var picked: [Int: (minutes: Int, at: Date)] = [:]
     private var state = PilotState()
     private var runtime: WKExtendedRuntimeSession?
     private var motion = CMMotionManager()
@@ -32,7 +36,36 @@ import SleepiCore
             if FileManager.default.fileExists(atPath: recordURL.path) { state = try JSONDecoder().decode(PilotState.self, from: Data(contentsOf: recordURL)) }
             start = state.markerStart
         } catch { status = "Watch storage unavailable. \(error.localizedDescription)" }
+        loadWakeTimes()
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
+    }
+    /// Re-read every time the start sheet opens, so a changed pick or a fresh iPhone history is used, not a stale value.
+    func suggestedWake(now: Date = .now) -> WakeSuggestion? {
+        GentleWakePolicy.suggestion(now: now, picked: picked, usual: usualWake)
+    }
+    func rememberPick(_ date: Date) {
+        let calendar = Calendar.current
+        let minutes = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        picked[calendar.component(.weekday, from: date)] = (minutes, .now)
+        let defaults = UserDefaults.standard
+        defaults.set(Dictionary(uniqueKeysWithValues: picked.map { (String($0.key), $0.value.minutes) }), forKey: "pickedWakeMinutes")
+        defaults.set(Dictionary(uniqueKeysWithValues: picked.map { (String($0.key), $0.value.at.timeIntervalSince1970) }), forKey: "pickedWakeAt")
+    }
+    private func loadWakeTimes() {
+        let defaults = UserDefaults.standard
+        usualWake = Self.weekdayMinutes(defaults.dictionary(forKey: "usualWake"))
+        let at = defaults.dictionary(forKey: "pickedWakeAt") as? [String: Double] ?? [:]
+        for (day, minutes) in Self.weekdayMinutes(defaults.dictionary(forKey: "pickedWakeMinutes")) {
+            if let time = at[String(day)] { picked[day] = (minutes, Date(timeIntervalSince1970: time)) }
+        }
+    }
+    nonisolated private static func weekdayMinutes(_ raw: [String: Any]?) -> [Int: Int] {
+        var result: [Int: Int] = [:]
+        for (key, value) in raw ?? [:] {
+            guard let day = Int(key), (1...7).contains(day), let minutes = value as? Int, (0..<1440).contains(minutes) else { continue }
+            result[day] = minutes
+        }
+        return result
     }
     /// Gentle wake and motion recording are per-night experiments: both are off unless switched on in the start sheet.
     @discardableResult func begin(latest: Date?, recordMotion: Bool) -> Bool {
@@ -169,7 +202,13 @@ import SleepiCore
     nonisolated private func receiveSummary(_ value: [String: Any]) {
         guard value["schema"] as? Int == 1 else { return }
         let seconds = value["asleep"] as? Double; let date = value["date"] as? Double
+        let usual = Self.weekdayMinutes(value["usualWake"] as? [String: Any])
         Task { @MainActor in
+            // A night without history (or a failed Health read) on iPhone keeps the last known times instead of erasing them.
+            if !usual.isEmpty {
+                self.usualWake = usual
+                UserDefaults.standard.set(Dictionary(uniqueKeysWithValues: usual.map { (String($0.key), $0.value) }), forKey: "usualWake")
+            }
             if let seconds, seconds.isFinite, seconds >= 0, let date, date.isFinite {
                 self.summary = DurationText.hoursMinutes(seconds) + " asleep"; self.summaryDate = Date(timeIntervalSince1970: date)
             } else { self.summary = "Your nights, on iPhone"; self.summaryDate = nil }

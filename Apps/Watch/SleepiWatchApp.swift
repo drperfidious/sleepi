@@ -19,6 +19,7 @@ struct WatchHome: View {
     @State private var showStart = false
     @State private var gentle = false
     @State private var recordMotion = false
+    @State private var suggestion: WakeSuggestion?
     @State private var latest = Calendar.current.nextDate(after: .now, matching: DateComponents(hour: 7), matchingPolicy: .nextTime) ?? .now.addingTimeInterval(8 * 3600)
     var body: some View {
         ScrollView {
@@ -45,6 +46,7 @@ struct WatchHome: View {
                     Toggle("Gentle wake", isOn: $gentle)
                     if gentle {
                         DatePicker("Latest tap", selection: $latest, displayedComponents: .hourAndMinute)
+                        Text(wakeSourceText).font(.caption2).foregroundStyle(.secondary)
                         Text("Experiment: taps your wrist when you move in the 25 minutes before this time, or at this time. No sound. Keep your Clock alarm set.").font(.caption2)
                     }
                     Toggle("Record motion", isOn: $recordMotion)
@@ -53,16 +55,35 @@ struct WatchHome: View {
                     }
                     Text("Sound recording must be started on your iPhone.").font(.caption2).foregroundStyle(.secondary)
                     Button(gentle ? "Confirm time & start" : "Track only") {
-                        if pilot.begin(latest: gentle ? nextOccurrence(latest) : nil, recordMotion: recordMotion) { showStart = false }
+                        let wake = gentle ? nextOccurrence(latest) : nil
+                        if pilot.begin(latest: wake, recordMotion: recordMotion) {
+                            if let wake { pilot.rememberPick(wake) }
+                            showStart = false
+                        }
                     }.tint(.purple)
                 }
             }
         }
         // Experiments are chosen fresh each night: both switches start off every time the sheet opens.
-        .onChange(of: showStart) { _, open in if open { gentle = false; recordMotion = false } }
+        .onChange(of: showStart) { _, open in
+            guard open else { return }
+            gentle = false; recordMotion = false
+            suggestion = pilot.suggestedWake()
+            if let suggestion { latest = suggestion.date }
+        }
         .onOpenURL { url in if url.scheme == "sleepi", url.host == "tonight" { showStart = pilot.start == nil } }
         .onAppear { if TonightRoute.consume() { showStart = pilot.start == nil } }
         .onReceive(NotificationCenter.default.publisher(for: .sleepiOpenTonight)) { _ in if TonightRoute.consume() { showStart = pilot.start == nil } }
+    }
+    private var wakeSourceText: String {
+        let day = nextOccurrence(latest).formatted(.dateTime.weekday(.wide))
+        guard let suggestion, Calendar.current.isDate(nextOccurrence(latest), equalTo: suggestion.date, toGranularity: .minute) else {
+            return "Set tonight. sleepi will suggest it again next \(day)."
+        }
+        switch suggestion.source {
+        case .lastPick: return "Your last \(day) time. Change it if your alarm changed."
+        case .usualWake: return "Your usual \(day) wake-up from Apple Watch. Apple's alarm time isn't readable, so check it."
+        }
     }
     private func nextOccurrence(_ date: Date) -> Date {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)

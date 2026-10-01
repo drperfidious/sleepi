@@ -129,3 +129,30 @@ private func sample(_ a: Double, _ b: Double, _ stage: SleepStage = .core, sourc
     #expect(night.interruptions.count == 1) // Edge wake and the unknown 7200–9000 gap are not wakings.
     #expect(night.interruptions.seconds == 300)
 }
+
+@Test func usualWakeUsesEachWeekdayThenItsDayTypeAndNeverGuesses() {
+    // origin is Tuesday 2 June 2026, 00:00 UTC (weekday 3). Wake-ups: Tue 06:30 and 06:40, Wed 07:00, Sat 09:00.
+    let day = 86400.0
+    let nights = NightBuilder.build(samples: [
+        sample(-7 * day + 3600, -7 * day + 6.5 * 3600), sample(3600, 6 * 3600 + 40 * 60),
+        sample(-6 * day + 3600, -6 * day + 7 * 3600), sample(-3 * day + 3600, -3 * day + 9 * 3600)
+    ], calendar: utc)
+    let usual = UsualWake.byWeekday(nights: nights, now: origin.addingTimeInterval(12 * 3600), calendar: utc)
+    #expect(usual[3] == 6 * 60 + 35)  // Tuesday: its own two mornings
+    #expect(usual[2] == 6 * 60 + 40)  // Monday: no mornings of its own, so the three weekday mornings
+    #expect(usual[7] == nil)          // Saturday: one weekend morning isn't enough to suggest anything
+    #expect(usual[1] == nil)
+}
+
+@Test func wakeSuggestionPrefersRecentPickAndSkipsTimesAlreadyPassed() {
+    let evening = origin.addingTimeInterval(22 * 3600) // Tuesday 22:00 UTC; the next morning is Wednesday (weekday 4)
+    let wednesday0615 = origin.addingTimeInterval(86400 + 6 * 3600 + 15 * 60)
+    let pick = GentleWakePolicy.suggestion(now: evening, picked: [4: (6 * 60 + 15, origin.addingTimeInterval(-6 * 86400))], usual: [4: 6 * 60 + 45], calendar: utc)
+    #expect(pick == WakeSuggestion(date: wednesday0615, source: .lastPick))
+    let stale = GentleWakePolicy.suggestion(now: evening, picked: [4: (6 * 60 + 15, origin.addingTimeInterval(-40 * 86400))], usual: [4: 6 * 60 + 45], calendar: utc)
+    #expect(stale?.source == .usualWake)
+    // At 02:00 Wednesday the same morning still counts; with nothing known there is no suggestion.
+    let early = GentleWakePolicy.suggestion(now: origin.addingTimeInterval(86400 + 2 * 3600), picked: [:], usual: [4: 6 * 60 + 45], calendar: utc)
+    #expect(early?.date == origin.addingTimeInterval(86400 + 6 * 3600 + 45 * 60))
+    #expect(GentleWakePolicy.suggestion(now: evening, picked: [:], usual: [:], calendar: utc) == nil)
+}
