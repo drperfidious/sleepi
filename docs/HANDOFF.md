@@ -25,7 +25,7 @@ The code for Watch motion and gentle wake is gated behind `SLEEPI_DEVICE_PILOT`,
 | Static architecture | Script verifies no Health writer/share types, workouts, energy types, AlarmKit or network/CloudKit client, and the expected background modes. This does not prove zero indirect battery/tracking interference. |
 | Classifier | Constructed Apple's built-in classifier on this Mac and confirmed `snoring`, `speech`, `cough`, `dog_bark`, and `door_slam` labels. The pipeline checks the runtime label list. |
 | Visual / interaction check | Native 430-point-wide SwiftUI preview inspected. Last Night and Trends layouts are readable; timeline data is accessible; Tonight opens confirmation before a marker, and ends correctly; Sounds has an honest empty state; a synthetic journal tag/note saved and reopened correctly. |
-| Icon files | Deterministic code-drawn 1024×1024 RGB PNGs without alpha. Destination asset-catalog compilation is not yet run. |
+| Icon files | Replaced 2026-10-01 by the crescent-and-waves artwork (1024×1024 RGB, no alpha); source in `Config/Icon/sleepi-icon.svg`. The code-drawn generator was removed so it can't overwrite them. Asset catalogs compile with Xcode 27.2. |
 
 The preview is labeled PREVIEW, uses synthetic fixtures only and does not persist demo state. It is not evidence of live device functionality.
 
