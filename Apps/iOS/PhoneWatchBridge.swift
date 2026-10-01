@@ -3,7 +3,7 @@ import Foundation
 import SleepiCore
 import SleepiUI
 
-@MainActor final class PhoneWatchBridge: NSObject, @preconcurrency WCSessionDelegate {
+@MainActor final class PhoneWatchBridge: NSObject, WCSessionDelegate {
     private weak var model: AppModel?
     init(model: AppModel) {
         self.model = model; super.init()

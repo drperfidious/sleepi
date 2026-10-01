@@ -45,6 +45,7 @@ import SleepiCore
     private var canSave = false
     private var loaded = false
     private var captureGeneration: UUID?
+    private var libraryFailed = false
 
     public init(demo: Bool = false, health: (any HealthReading)? = nil, audio: (any AudioCapturing)? = nil, directory: URL? = nil) {
         isDemo = demo; self.health = health; self.audio = audio
@@ -79,8 +80,14 @@ import SleepiCore
                 try await store.removeOrphanClips(keeping: Set(state.sounds.compactMap(\.fileName)))
                 await pruneClips()
                 await persist()
+                if libraryFailed { libraryFailed = false; self.error = nil }
             }
-        } catch { canSave = false; self.error = "Couldn’t open your library. Existing data was left unchanged. \(error.localizedDescription)" }
+        } catch {
+            // The app also loads at launch without a scene (HealthKit or Watch wakes), possibly before first unlock when
+            // the library is unreadable. Allow the scene's load() to retry instead of staying broken until relaunch.
+            canSave = false; loaded = false; libraryFailed = true
+            self.error = "Couldn’t open your library. Existing data was left unchanged. \(error.localizedDescription)"
+        }
         if canSave { onLocalStoreReady?() }
         showOnboarding = !state.settings.onboardingComplete
         health?.observe { [weak self] in await self?.refresh(background: true) }
@@ -210,6 +217,12 @@ import SleepiCore
         }
         await persist()
     }
+    /// Time from the latest in-bed marker (iPhone or Watch) before the night's first detected sleep. An estimate, not measured latency.
+    public func markerToFirstSleep(for night: SleepNight) -> TimeInterval? {
+        guard let first = night.firstSleep,
+              let session = state.sessions.last(where: { $0.start >= night.windowStart && $0.start < first }) else { return nil }
+        return first.timeIntervalSince(session.start)
+    }
     public func wakeCandidates(for night: SleepNight) -> [WakeCandidate] {
         let motion = state.motionNights.filter { $0.start < night.windowEnd && $0.end > night.windowStart }.flatMap(\.epochs)
         let heart = snapshot.vitals.filter { $0.kind == .heartRate }.sorted { $0.date < $1.date }
@@ -218,7 +231,12 @@ import SleepiCore
             let recent = heart.last { $0.date <= epoch.start && epoch.start.timeIntervalSince($0.date) <= 90 }
             let prior = heart.last { $0.date < epoch.start.addingTimeInterval(-90) && epoch.start.timeIntervalSince($0.date) <= 300 }
             let rise = recent.flatMap { r in prior.map { r.value - $0.value } }
-            return WakeEvidence(start: epoch.start, stage: stage, movement: epoch.sampleCount >= 1000 ? epoch.meanMovement : nil, heartRateRise: rise)
+            // Speech or coughing near the epoch is the plan's second signal. Snoring implies sleep, and "not me" clips are excluded.
+            let heard = state.sounds.contains { event in
+                (event.kind == .speech || event.kind == .coughing) && !event.notMe
+                    && event.end >= epoch.start.addingTimeInterval(-30) && event.start <= epoch.start.addingTimeInterval(60)
+            }
+            return WakeEvidence(start: epoch.start, stage: stage, movement: epoch.sampleCount >= 1000 ? epoch.meanMovement : nil, heartRateRise: rise, speechOrRustling: heard)
         }
         return WakeExperiment.candidates(epochs)
     }
@@ -237,15 +255,17 @@ import SleepiCore
             onSnapshot?(nil)
         } catch { self.error = "Deletion could not finish: \(error.localizedDescription)" }
     }
+    /// Readings that overlap first-to-last sleep. Nightly summaries such as wrist temperature span the whole
+    /// session and usually start before the first asleep segment, so a start-date-inside test would drop them.
+    private func overnightValues(_ kind: VitalKind, _ night: SleepNight) -> [Double] {
+        guard let start = night.firstSleep, let end = night.lastSleep else { return [] }
+        return snapshot.vitals.filter { $0.kind == kind && $0.overlaps(start, end) }.map(\.value)
+    }
     public func vital(_ kind: VitalKind, night: SleepNight) -> (value: Double, baseline: Double?, count: Int)? {
-        guard let start = night.firstSleep, let end = night.lastSleep else { return nil }
-        let values = snapshot.vitals.filter { $0.kind == kind && $0.date >= start && $0.date <= end }.map(\.value)
+        let values = overnightValues(kind, night)
         guard let value = Insights.median(values) else { return nil }
         let priorNights = nights.filter { $0.windowStart < night.windowStart }.suffix(30)
-        let nightlyValues = priorNights.compactMap { n -> Double? in
-            guard let start = n.firstSleep, let end = n.lastSleep else { return nil }
-            return Insights.median(snapshot.vitals.filter { $0.kind == kind && $0.date >= start && $0.date <= end }.map(\.value))
-        }
+        let nightlyValues = priorNights.compactMap { Insights.median(overnightValues(kind, $0)) }
         return (value, nightlyValues.count >= 7 ? Insights.median(nightlyValues) : nil, values.count)
     }
 }

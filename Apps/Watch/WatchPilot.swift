@@ -5,7 +5,7 @@ import Combine
 @preconcurrency import WatchConnectivity
 import SleepiCore
 
-@MainActor final class WatchPilot: NSObject, ObservableObject, @preconcurrency WKExtendedRuntimeSessionDelegate, @preconcurrency WCSessionDelegate {
+@MainActor final class WatchPilot: NSObject, ObservableObject, @preconcurrency WKExtendedRuntimeSessionDelegate, WCSessionDelegate {
     static let shared = WatchPilot()
     #if SLEEPI_DEVICE_PILOT
     let pilotEnabled = true
@@ -67,19 +67,25 @@ import SleepiCore
         runtime = session; session.delegate = self
     }
     func end() {
+        let orphanedWake = runtime == nil && state.latest != nil
         runtime?.invalidate(); runtime = nil; timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates()
         alerting = false; let end = Date.now
         sendMarker(end: end)
         state.markerStart = nil; state.latest = nil; state.recordEnd = end; start = nil
         _ = save()
-        status = "Night ended. Apple’s alarm is unchanged."
+        status = orphanedWake ? "Night ended. If the gentle wake still taps, press Stop. Apple’s alarm is unchanged." : "Night ended. Apple’s alarm is unchanged."
         // CMSensorRecorder has no stop API. The requested capture expires by itself.
     }
     func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
         runtime = extendedRuntimeSession
         guard pilotEnabled else { extendedRuntimeSession.invalidate(); status = "Pilot disabled; scheduled session cancelled."; return }
+        guard let latest = state.latest else {
+            // The night was ended after the app was terminated, so end() had no session handle to cancel.
+            // Previously this fell through to `.now` and buzzed 25 minutes early. Apple documents invalidate() on a
+            // scheduled session as an active-app call; whether this background call is honoured is a device check.
+            extendedRuntimeSession.invalidate(); status = "Night already ended; gentle wake cancelled."; return
+        }
         previousAcceleration = nil; movementHits = 0
-        let latest = state.latest ?? .now
         let deadline = min(latest, (extendedRuntimeSession.expirationDate ?? latest).addingTimeInterval(-5))
         timer?.invalidate()
         if deadline <= .now { alert(); return }
@@ -109,7 +115,8 @@ import SleepiCore
     private func alert() {
         guard let runtime, runtime.state == .running, !alerting else { return }
         alerting = true; motion.stopAccelerometerUpdates(); timer?.invalidate()
-        runtime.notifyUser(hapticType: .notification, repeatHandler: nil)
+        // A nil handler repeats every 3 s until dismissed. Every 10 s keeps it a nudge; Apple's Clock alarm is the alarm.
+        runtime.notifyUser(hapticType: .notification) { _ in 10 }
         status = "Gentle wake · tap Dismiss to stop."
     }
     func exportMotion() {
@@ -119,18 +126,22 @@ import SleepiCore
         exporting = true; let id = state.id
         Task {
             let recording = await Task.detached(priority: .utility) {
-                var buckets: [Int: (sum: Double, count: Int)] = [:]
+                // Up to 2.16M samples for 12 h at 50 Hz, reduced while the app must stay open: fixed arrays, not a dictionary.
+                let slots = Int((to.timeIntervalSince(from) / 30).rounded(.up))
+                var sums = [Double](repeating: 0, count: slots), counts = [Int](repeating: 0, count: slots)
                 if let list = CMSensorRecorder().accelerometerData(from: from, to: to) {
                     for case let point as CMRecordedAccelerometerData in list {
                         let offset = point.startDate.timeIntervalSince(from)
                         guard offset >= 0, point.startDate < to else { continue }
-                        let key = Int(offset / 30)
+                        let key = min(slots - 1, Int(offset / 30))
                         let a = point.acceleration
-                        let magnitude = abs(sqrt(a.x * a.x + a.y * a.y + a.z * a.z) - 1)
-                        var bucket = buckets[key] ?? (0, 0); bucket.sum += magnitude; bucket.count += 1; buckets[key] = bucket
+                        sums[key] += abs(sqrt(a.x * a.x + a.y * a.y + a.z * a.z) - 1); counts[key] += 1
                     }
                 }
-                let epochs = buckets.keys.sorted().map { key in MotionEpoch(start: from.addingTimeInterval(Double(key) * 30), meanMovement: buckets[key]!.sum / Double(buckets[key]!.count), sampleCount: buckets[key]!.count) }
+                // Empty slots stay absent: missing coverage is never exported as stillness.
+                let epochs = counts.indices.filter { counts[$0] > 0 }.map { key in
+                    MotionEpoch(start: from.addingTimeInterval(Double(key) * 30), meanMovement: sums[key] / Double(counts[key]), sampleCount: counts[key])
+                }
                 return MotionRecording(id: id, start: from, end: to, epochs: epochs)
             }.value
             defer { exporting = false }
@@ -178,4 +189,9 @@ private struct PilotState: Codable {
     var recordStart: Date?
     var latest: Date?
     var recordEnd: Date?
+}
+
+/// CMSensorDataList only adopts NSFastEnumeration, which Swift's for-in can't use directly.
+extension CMSensorDataList: @retroactive Sequence {
+    public func makeIterator() -> NSFastEnumerationIterator { NSFastEnumerationIterator(self) }
 }

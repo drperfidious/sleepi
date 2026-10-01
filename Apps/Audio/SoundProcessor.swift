@@ -7,7 +7,9 @@ import SleepiCore
 /// Backpressure is bounded; an overloaded classifier ends capture instead of accumulating RAM.
 public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Sendable {
     private let queue = DispatchQueue(label: "sleepi.audio.analysis", qos: .utility)
-    private let slots = DispatchSemaphore(value: 4)
+    /// About 2.7 s of 4096-frame buffers at 48 kHz (~1.5 MB). Four slots (~0.34 s) ended a night on any brief stall,
+    /// such as encoding a clip on this same queue while the phone is locked and throttled.
+    private let slots = DispatchSemaphore(value: 32)
     private let format: AVAudioFormat
     private let analyzer: SNAudioStreamAnalyzer
     private let request: SNClassifySoundRequest

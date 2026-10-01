@@ -51,6 +51,12 @@ public struct SleepNight: Identifiable, Codable, Equatable, Sendable {
     public var asleepSeconds: Double { segments.filter { $0.stage.isAsleep }.reduce(0) { $0 + $1.seconds } }
     public var awakeSeconds: Double { segments.filter { $0.stage == .awake }.reduce(0) { $0 + $1.seconds } }
     public var recordedSeconds: Double { segments.reduce(0) { $0 + $1.seconds } }
+    /// Recorded awake segments between first and last sleep. Unknown gaps are not counted as wakings.
+    public var interruptions: (count: Int, seconds: Double) {
+        guard let first = firstSleep, let last = lastSleep else { return (0, 0) }
+        let inside = segments.filter { $0.stage == .awake && $0.start >= first && $0.end <= last }
+        return (inside.count, inside.reduce(0) { $0 + $1.seconds })
+    }
     public func seconds(in stage: SleepStage) -> Double { segments.filter { $0.stage == stage }.reduce(0) { $0 + $1.seconds } }
 }
 
@@ -82,8 +88,13 @@ public enum VitalKind: String, Codable, CaseIterable, Sendable {
 public struct VitalReading: Codable, Sendable {
     public var kind: VitalKind
     public var date: Date
+    /// Nightly summaries (wrist temperature, breathing disturbances) span the sleep session; point readings end where they start.
+    public var end: Date
     public var value: Double
-    public init(kind: VitalKind, date: Date, value: Double) { self.kind = kind; self.date = date; self.value = value }
+    public init(kind: VitalKind, date: Date, end: Date? = nil, value: Double) {
+        self.kind = kind; self.date = date; self.end = max(date, end ?? date); self.value = value
+    }
+    public func overlaps(_ start: Date, _ finish: Date) -> Bool { end >= start && date <= finish }
 }
 
 public struct HealthSnapshot: Sendable {

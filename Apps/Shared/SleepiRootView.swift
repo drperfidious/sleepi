@@ -113,6 +113,16 @@ struct LastNightView: View {
                 miniMetric("First sleep", value: night.firstSleep?.formatted(date: .omitted, time: .shortened) ?? "—", symbol: "moon")
                 miniMetric("Last sleep", value: night.lastSleep?.formatted(date: .omitted, time: .shortened) ?? "—", symbol: "sun.horizon")
             }
+            if let latency = model.markerToFirstSleep(for: night) {
+                Text("First detected sleep came \(DurationText.hoursMinutes(latency)) after your in-bed marker. An estimate, not measured sleep latency.")
+                    .font(.caption).foregroundStyle(SleepiTheme.muted)
+            }
+            HStack(alignment: .top, spacing: 12) {
+                let woke = night.interruptions
+                miniMetric("Awake in the night", value: woke.count == 0 ? "None recorded" : "\(woke.count)× · \(Int(woke.seconds / 60))m", symbol: "eye")
+                let heard = model.selectedSounds.filter { !$0.notMe }
+                miniMetric("Sounds kept", value: heard.isEmpty ? "—" : "\(heard.count) · \(heard.filter { $0.kind == .snoring }.count) snoring", symbol: "waveform")
+            }
             ForEach(model.wakeCandidates(for: night)) { candidate in
                 Card {
                     Eyebrow(text: "Watch pilot · unvalidated")
@@ -207,8 +217,8 @@ struct RawNightView: View {
                     DetailLine(title: kind.title, value: "\(metric.value.formatted(.number.precision(.fractionLength(1)))) \(kind.unit) · \(metric.count) readings")
                 }
             }
-            if let session = model.state.sessions.last(where: { $0.start >= night.windowStart && $0.start < (night.firstSleep ?? night.windowStart) }), let first = night.firstSleep {
-                DetailLine(title: "Marker to first detected sleep", value: DurationText.hoursMinutes(first.timeIntervalSince(session.start)))
+            if let latency = model.markerToFirstSleep(for: night) {
+                DetailLine(title: "Marker to first detected sleep", value: DurationText.hoursMinutes(latency))
                 Text("An estimate from your in-bed marker; this is not measured sleep latency.").font(.caption).foregroundStyle(SleepiTheme.muted)
             }
             ForEach(night.segments) { s in DetailLine(title: "\(s.start.formatted(date: .omitted, time: .shortened)) · \(s.stage.title)", value: "\(Int(s.seconds / 60)) min") }

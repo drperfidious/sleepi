@@ -122,3 +122,10 @@ private func sample(_ a: Double, _ b: Double, _ stage: SleepStage = .core, sourc
     let value = Insights.shortfall(nights: nights, targetHours: 8, now: origin.addingTimeInterval(7200), calendar: utc)
     #expect(value.recordedNights == 1); #expect(value.seconds == 25200)
 }
+
+@Test func interruptionsCountOnlyRecordedWakeInsideSleep() {
+    let night = NightBuilder.build(samples: [sample(0, 600, .awake), sample(600, 3600), sample(3600, 3900, .awake), sample(3900, 7200),
+                                             sample(9000, 12000), sample(12000, 12600, .awake)], calendar: utc)[0]
+    #expect(night.interruptions.count == 1) // Edge wake and the unknown 7200–9000 gap are not wakings.
+    #expect(night.interruptions.seconds == 300)
+}

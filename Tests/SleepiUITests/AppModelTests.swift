@@ -97,3 +97,43 @@ import SleepiCore
     await model.play(event); #expect(model.playingID == event.id)
     audio.playbackEnded?(); #expect(model.playingID == nil)
 }
+
+@Test @MainActor func nightlySummaryVitalStartingBeforeFirstSleepIsShown() async throws {
+    // Apple's wrist temperature sample spans the sleep session, which usually begins before the first asleep segment.
+    let model = AppModel(demo: true)
+    let night = model.nights.last!
+    let start = night.firstSleep!.addingTimeInterval(-600), end = night.lastSleep!
+    model.snapshot.vitals = [VitalReading(kind: .wristTemperature, date: start, end: end, value: 35.6),
+                             VitalReading(kind: .wristTemperature, date: night.windowStart, end: night.windowStart.addingTimeInterval(60), value: 34)]
+    #expect(model.vital(.wristTemperature, night: night)?.value == 35.6)
+    #expect(model.vital(.wristTemperature, night: night)?.count == 1)
+}
+
+@Test @MainActor func heardSpeechCountsAsTheSecondWakeSignal() async throws {
+    let model = AppModel(demo: true)
+    let night = model.nights.last!
+    let base = night.segments.first { $0.stage.isAsleep && $0.seconds >= 120 }!.start
+    model.state.motionNights = [MotionRecording(id: UUID(), start: base, end: base.addingTimeInterval(60),
+                                                epochs: [0, 30].map { MotionEpoch(start: base.addingTimeInterval($0), meanMovement: 0.3, sampleCount: 1500) })]
+    #expect(model.wakeCandidates(for: night).isEmpty) // Movement alone is not enough.
+    var speech = SoundEvent(start: base.addingTimeInterval(10), end: base.addingTimeInterval(20), kind: .speech, confidence: 0.9, levelDBFS: -30)
+    model.state.sounds = [speech]
+    #expect(model.wakeCandidates(for: night).count == 1)
+    speech.notMe = true; model.state.sounds = [speech]
+    #expect(model.wakeCandidates(for: night).isEmpty)
+}
+
+@Test @MainActor func failedLibraryLoadCanBeRetried() async throws {
+    // A launch without a scene can run before first unlock; the scene's later load() must be able to recover.
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let model = AppModel(directory: dir)
+    let library = dir.appendingPathComponent("library.json")
+    try Data("unreadable".utf8).write(to: library)
+    await model.load()
+    #expect(model.error != nil)
+    var saved = LocalState(); saved.settings.targetHours = 7
+    try JSONEncoder().encode(saved).write(to: library)
+    await model.load()
+    #expect(model.error == nil); #expect(model.state.settings.targetHours == 7)
+}

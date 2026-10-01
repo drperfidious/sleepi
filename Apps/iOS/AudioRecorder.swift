@@ -17,7 +17,8 @@ import SleepiAudio
                onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard UIApplication.shared.applicationState == .active else { throw RecordingError.foregroundRequired }
         guard await AVAudioApplication.requestRecordPermission() else { throw RecordingError.permissionDenied }
-        guard UIApplication.shared.applicationState == .active else { throw RecordingError.foregroundRequired }
+        // The first-run permission alert leaves the app briefly .inactive; only a move to the background revokes consent.
+        guard UIApplication.shared.applicationState != .background else { throw RecordingError.foregroundRequired }
         await stop(); stopPlayback(); self.onStatus = onStatus
         let session = AVAudioSession.sharedInstance()
         do {
@@ -50,17 +51,36 @@ import SleepiAudio
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
     private func installInterruptionHandlers() {
-        // A call, alarm, Siri, route change or reset ends capture. Resumption needs a new foreground action.
+        // A call, alarm, Siri, lost input device or reset ends capture. Resumption needs a new foreground action.
         // This conservative policy avoids a reassuring 'recording' state after the engine has stopped.
-        for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification, AVAudioSession.mediaServicesWereResetNotification, AVAudioEngine.configurationChangeNotification] {
-            let token = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        // Notifications that don't stop capture are ignored: setCategory's own .categoryChange route notification is
+        // delivered asynchronously and can land after the handlers are installed, which ended a fresh session.
+        for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification, AVAudioSession.mediaServicesWereResetNotification, .AVAudioEngineConfigurationChange] {
+            let token = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let ends = Self.endsCapture(note)
                 Task { @MainActor in
-                    guard let self, self.engine != nil else { return }
+                    guard let self, let engine = self.engine else { return }
+                    guard ends || !engine.isRunning else { return }
                     await self.stop()
                     self.onStatus?("Sound interrupted · end this session and start again to resume")
                 }
             }
             observations.append(token)
+        }
+    }
+    nonisolated private static func endsCapture(_ note: Notification) -> Bool {
+        switch note.name {
+        case AVAudioSession.interruptionNotification:
+            let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            return raw.flatMap(AVAudioSession.InterruptionType.init(rawValue:)) == .began
+        case AVAudioSession.routeChangeNotification:
+            let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            switch raw.flatMap(AVAudioSession.RouteChangeReason.init(rawValue:)) {
+            case .newDeviceAvailable, .oldDeviceUnavailable, .override, .noSuitableRouteForCategory: return true
+            default: return false
+            }
+        case AVAudioSession.mediaServicesWereResetNotification: return true
+        default: return false // Engine configuration changes are judged by whether the engine is still running.
         }
     }
     func play(_ url: URL, onEnded: @escaping @MainActor @Sendable () -> Void) throws {

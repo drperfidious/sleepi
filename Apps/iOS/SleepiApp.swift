@@ -35,6 +35,9 @@ import SleepiUI
             }
         }
         _model = State(initialValue: model)
+        // HealthKit background delivery can launch the app without a scene, so the root view's .task never runs.
+        // Load here so observer queries are registered (and their completions called) on every launch. load() is idempotent.
+        Task { @MainActor in await model.load() }
     }
     var body: some Scene {
         WindowGroup {
