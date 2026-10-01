@@ -116,7 +116,9 @@ import SleepiCore
         guard let runtime, runtime.state == .running, !alerting else { return }
         alerting = true; motion.stopAccelerometerUpdates(); timer?.invalidate()
         // A nil handler repeats every 3 s until dismissed. Every 10 s keeps it a nudge; Apple's Clock alarm is the alarm.
-        runtime.notifyUser(hapticType: .notification) { _ in 10 }
+        // @Sendable keeps the handler unisolated: WatchKit may call it off the main thread, where a main-actor
+        // closure would trip Swift 6's isolation check (the same crash the iPhone audio tap had).
+        runtime.notifyUser(hapticType: .notification) { @Sendable _ in 10 }
         status = "Gentle wake · tap Dismiss to stop."
     }
     func exportMotion() {

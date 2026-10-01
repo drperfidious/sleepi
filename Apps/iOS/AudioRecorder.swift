@@ -35,16 +35,22 @@ import SleepiAudio
             let processor = try SoundProcessor(sampleRate: format.sampleRate, directory: directory, byteBudget: remainingBytes, onEvent: onEvent, onFailure: { [weak self] message in
                 Task { @MainActor in await self?.stop(); self?.onStatus?(message) }
             })
-            input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
-                guard let data = buffer.floatChannelData?[0] else { return }
-                // Copy one microphone channel; the real-time callback does no file I/O or inference.
-                processor.ingest(Array(UnsafeBufferPointer(start: data, count: Int(buffer.frameLength))))
-            }
+            Self.installTap(on: input, format: format, feeding: processor)
             self.engine = engine; self.processor = processor
             engine.prepare(); try engine.start()
             onStatus("Listening · short highlights stay on this iPhone")
             installInterruptionHandlers()
         } catch { await stop(); throw error }
+    }
+    /// The tap runs on Core Audio's real-time thread. A closure written inside this @MainActor class inherits main-actor
+    /// isolation, and Swift 6 asserts that isolation on entry, which crashed the app on the first buffer of every
+    /// recording. Building the closure in a nonisolated context leaves it unisolated; it only touches the Sendable processor.
+    nonisolated private static func installTap(on input: AVAudioInputNode, format: AVAudioFormat, feeding processor: SoundProcessor) {
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+            guard let data = buffer.floatChannelData?[0] else { return }
+            // Copy one microphone channel; the real-time callback does no file I/O or inference.
+            processor.ingest(Array(UnsafeBufferPointer(start: data, count: Int(buffer.frameLength))))
+        }
     }
     func stop() async {
         for observer in observations { NotificationCenter.default.removeObserver(observer) }; observations.removeAll()

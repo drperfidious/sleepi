@@ -14,6 +14,9 @@ for path in files:
                       r'\.basalEnergyBurned\b', r'\bimport CloudKit\b', r'\bURLSession\b',
                       r'\bNSUbiquitousKeyValueStore\b', r'\bimport AlarmKit\b']:
         assert not re.search(forbidden, source), f'{path}: prohibited API {forbidden}'
+recorder = (root / 'Apps/iOS/AudioRecorder.swift').read_text()
+# The audio tap runs on a real-time thread; built inside the @MainActor class it crashed on Swift 6's isolation check.
+assert recorder.count('installTap(onBus') == 1 and 'nonisolated private static func installTap' in recorder, 'audio tap must be built nonisolated'
 health = (root / 'Apps/iOS/HealthKitReader.swift').read_text()
 assert 'requestAuthorization(toShare: [], read: read)' in health
 assert not re.search(r'\bstore\.(save|delete|startWorkoutSession)\s*\(', health)

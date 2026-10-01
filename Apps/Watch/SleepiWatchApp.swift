@@ -43,6 +43,9 @@ struct WatchHome: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Tonight, your way").font(.headline)
                     Toggle("Gentle wake", isOn: $gentle).disabled(!pilot.pilotEnabled)
+                    if !pilot.pilotEnabled {
+                        Text("Off in this build. Gentle wake is an experiment that's turned on in a separate test build.").font(.caption2).foregroundStyle(.secondary)
+                    }
                     if gentle {
                         DatePicker("Latest tap", selection: $latest, displayedComponents: .hourAndMinute)
                         Text("Up to 25 minutes early, based on movement. Keep your Clock alarm set.").font(.caption2)
