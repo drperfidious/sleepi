@@ -21,7 +21,7 @@ struct TrendsView: View {
         PageHeading(eyebrow: "Look at the longer story", title: "Patterns, without pressure.", subtitle: "One night is a moment. A few weeks tell you more.")
         Picker("Time range", selection: $days) { Text("7 days").tag(7); Text("30 days").tag(30); Text("90 days").tag(90) }.pickerStyle(.segmented)
         if nights.isEmpty {
-            EmptyCard(symbol: "chart.xyaxis.line", title: "Patterns take a little time", detail: "Once Apple Watch has recorded your nights, you’ll see duration and schedule variation here. Missing nights stay missing.")
+            EmptyCard(symbol: "chart.xyaxis.line", title: "Patterns take a little time", detail: model.watchAvailable ? "Once Apple Watch has recorded your nights, you’ll see duration and schedule variation here. Missing nights stay missing." : "Once sleep is recorded, you’ll see duration and schedule variation here. Missing nights stay missing.")
         } else {
             Card {
                 Eyebrow(text: "Time asleep")
@@ -180,10 +180,17 @@ struct SettingsView: View {
                 Eyebrow(text: "A shortcut to tonight")
                 Text("In Shortcuts, create a Sleep or Focus automation and add “Open Tonight in sleepi.” It opens the choice screen. Confirm microphone recording on the iPhone.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
-            GentleWakeCard(model: model)
+            if model.watchAvailable { GentleWakeCard(model: model) }
+            else {
+                // The one place a user looking for Watch features finds a word about them.
+                Card {
+                    Eyebrow(text: "Apple Watch")
+                    Text("Pairing an Apple Watch is the recommended way to use sleepi, but you can still monitor your sleep with your iPhone.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                }
+            }
             Card {
                 Eyebrow(text: "A thoughtful experiment")
-                Text("Watch motion and gentle wake are experiments you switch on per night in the Watch app; both start off. Sleep-stage correction, SRI, a recovery score, and cloud sync are not enabled in this build.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                Text("\(model.watchAvailable ? "Watch motion and gentle wake are experiments you switch on per night in the Watch app; both start off. " : "")Sleep-stage correction, SRI, a recovery score, and cloud sync are not enabled in this build.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
                 Text("sleepi supports reflection on sleep. Sound labels and sleep stages are estimates, not diagnoses.").font(.caption).foregroundStyle(SleepiTheme.muted)
             }
             Button("Delete all local sleepi data", role: .destructive) { deleteConfirmation = true }.disabled(model.isDemo)
@@ -204,8 +211,8 @@ struct OnboardingView: View {
             HStack(spacing: 6) { ForEach(0..<3) { i in Capsule().fill(i == page ? SleepiTheme.lavender : SleepiTheme.card).frame(width: 28, height: 3) } }.padding(.top, 20)
             Spacer()
             Image(systemName: page == 0 ? "moon.stars" : page == 1 ? "heart" : "applewatch").font(.system(size: 56, weight: .ultraLight)).foregroundStyle(SleepiTheme.lavender)
-            PageHeading(eyebrow: "Welcome to sleepi", title: page == 0 ? "Rest comes first." : page == 1 ? "Your nights, connected." : "Keep your usual rhythm.", subtitle: page == 0 ? "A calm place to understand your sleep, with Apple Watch at its heart." : page == 1 ? "Choose what sleepi may read from Apple Health. You can change access any time." : "On your iPhone, check Sleep in Health and the Watch app. These settings aren’t visible to sleepi.")
-            Text(page == 0 ? "Apple keeps tracking sleep and running your alarm. sleepi never writes Health records or starts a workout. Your notes and optional audio stay on this device." : page == 1 ? "No readable data can mean no recordings or no permission. sleepi cannot tell which. Microphone access is only requested when you start recording." : "Enable Track Sleep with Apple Watch. Keep Sleep Focus for Vitals, wear your Watch to bed, and charge it to at least 30%. Confirm your Clock alarm yourself.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(6)
+            PageHeading(eyebrow: "Welcome to sleepi", title: page == 0 ? "Rest comes first." : page == 1 ? "Your nights, connected." : "Keep your usual rhythm.", subtitle: page == 0 ? (model.watchAvailable ? "A calm place to understand your sleep, with Apple Watch at its heart." : "A calm place to understand your sleep.") : page == 1 ? "Choose what sleepi may read from Apple Health. You can change access any time." : (model.watchAvailable ? "On your iPhone, check Sleep in Health and the Watch app. These settings aren’t visible to sleepi." : "On your iPhone, check Sleep in the Health app. These settings aren’t visible to sleepi."))
+            Text(page == 0 ? "Apple keeps tracking sleep and running your alarm. sleepi never writes Health records or starts a workout. Your notes and optional audio stay on this device." : page == 1 ? "No readable data can mean no recordings or no permission. sleepi cannot tell which. Microphone access is only requested when you start recording." : (model.watchAvailable ? "Enable Track Sleep with Apple Watch. Keep Sleep Focus for Vitals, wear your Watch to bed, and charge it to at least 30%. Confirm your Clock alarm yourself." : "Set your sleep schedule and Sleep Focus as you like. Confirm your Clock alarm yourself.")).font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(6)
             if page == 2 { Toggle("I’ve checked my Apple sleep setup", isOn: $acknowledged).font(.subheadline) }
             Spacer()
             PrimaryButton(title: page == 0 ? "Get to know your nights" : page == 1 ? "Choose Health access" : "Make yourself at home") {

@@ -19,16 +19,16 @@ struct TonightView: View {
                 if !session.requestedAudio, model.audioAvailable {
                     Button { Task { await model.addSoundToTonight() } } label: { Label("Add sound recording", systemImage: "mic") }.font(.subheadline).disabled(model.isStarting)
                 }
-                Text("Elapsed time is time since your marker, not time asleep. Ending here ends it on your Watch too.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                Text(model.watchAvailable ? "Elapsed time is time since your marker, not time asleep. Ending here ends it on your Watch too." : "Elapsed time is time since your marker, not time asleep.").font(.caption).foregroundStyle(SleepiTheme.muted)
                 PrimaryButton(title: model.isStopping ? "Ending…" : "End tonight", symbol: "stop") { Task { await model.stopTonight() } }.disabled(model.isStopping)
             }
         } else {
             PrimaryButton(title: "Settle in", symbol: "moon") { model.showStartSheet = true }
-            Text("Apple Watch will track your sleep either way.").font(.system(size: 12)).foregroundStyle(SleepiTheme.muted).frame(maxWidth: .infinity)
+            Text(model.watchAvailable ? "Apple Watch will track your sleep either way." : "Saves your in-bed time; sound highlights are optional.").font(.system(size: 12)).foregroundStyle(SleepiTheme.muted).frame(maxWidth: .infinity)
         }
         Card {
             Eyebrow(text: "Before you drift off")
-            checklist("Wear your Watch, with enough charge.", symbol: "applewatch")
+            if model.watchAvailable { checklist("Wear your Watch, with enough charge.", symbol: "applewatch") }
             checklist("Keep your usual Sleep Focus and alarm.", symbol: "alarm")
             checklist("For sound, start here on your iPhone.", symbol: "mic")
         }
@@ -43,7 +43,7 @@ struct StartSheet: View {
     @State private var wake = Date.now
     var body: some View {
         SheetFrame(title: "Make room for rest") {
-            Text("Save an in-bed marker. Apple Watch continues its own sleep tracking.").foregroundStyle(SleepiTheme.muted)
+            Text(model.watchAvailable ? "Save an in-bed marker. Apple Watch continues its own sleep tracking." : "Save an in-bed marker, and record sound highlights on this iPhone if you like.").foregroundStyle(SleepiTheme.muted)
             Card {
                 Toggle(isOn: $sound) { Label("Record sound highlights", systemImage: "waveform") }.disabled(!model.audioAvailable)
                 Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Your microphone listens on this iPhone. Short clips may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved. Sounds from other apps keep playing, and sleepi may hear them.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)

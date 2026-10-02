@@ -147,7 +147,7 @@ public enum SessionSyncEvent: Sendable {
     }
     public func loadDemo() {
         snapshot = DemoData.snapshot(); nights = NightBuilder.build(samples: snapshot.samples)
-        state.settings.onboardingComplete = true
+        state.settings.onboardingComplete = true; watchAvailable = true
         healthStatus = "Example data · no connection to Apple Health"
     }
     public func connect() async {
@@ -167,7 +167,7 @@ public enum SessionSyncEvent: Sendable {
             snapshot = result; nights = NightBuilder.build(samples: result.samples)
             recomputeTagLinks()
             onSnapshot?(nights.last)
-            healthStatus = nights.isEmpty ? "No readable Apple Watch sleep yet. Data may be unavailable or access may be off." : "From Apple Watch · refreshed \(result.fetchedAt.formatted(date: .omitted, time: .shortened))"
+            healthStatus = nights.isEmpty ? (watchAvailable ? "No readable Apple Watch sleep yet. Data may be unavailable or access may be off." : "No sleep stages in Health. sleepi reads stages recorded by an Apple Watch.") : "From Apple Watch · refreshed \(result.fetchedAt.formatted(date: .omitted, time: .shortened))"
             if background, state.settings.morningNotifications, let night = nights.last,
                let wake = night.lastSleep, wake < Date.now.addingTimeInterval(-3600), wake > Date.now.addingTimeInterval(-18 * 3600),
                state.lastNotifiedNight != night.id, await onMorning?(night) == true {

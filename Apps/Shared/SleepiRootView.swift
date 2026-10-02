@@ -172,7 +172,7 @@ struct LastNightView: View {
                 .sheet(isPresented: $journalOpen) { JournalSheet(model: model, night: night) }
                 .sheet(isPresented: $showRaw) { RawNightView(night: night, model: model) }
         } else {
-            PageHeading(eyebrow: "Good rest starts here", title: "Your night, made clear.", subtitle: "Apple does the sensing. sleepi helps you find the patterns.")
+            PageHeading(eyebrow: "Good rest starts here", title: "Your night, made clear.", subtitle: model.watchAvailable ? "Apple does the sensing. sleepi helps you find the patterns." : "Start a night from Tonight to save your in-bed time and sound highlights.")
             EmptyCard(symbol: "moon.stars", title: "Room for your first night", detail: model.healthStatus)
             PrimaryButton(title: model.isLoading ? "Reading Apple Health…" : "Connect Apple Health", symbol: "heart") { Task { await model.connect() } }.disabled(model.isLoading)
             Card { Eyebrow(text: "Always yours"); Text("Your stages stay Apple’s. Your alarm stays yours.").font(.title3); Text("sleepi reads your sleep data and keeps your notes on this device. It cannot change your rings, sleep records, or Clock alarm.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(5) }
