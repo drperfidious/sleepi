@@ -41,6 +41,7 @@ targets:
         CFBundleDisplayName: sleepi
         NSHealthShareUsageDescription: sleepi reads your Apple Watch sleep and overnight measurements to help you understand your nights. It never writes to Health.
         NSMicrophoneUsageDescription: With your confirmation, sleepi listens for room sounds and keeps short highlights on this iPhone.
+        NSMotionUsageDescription: On phone-only nights, sleepi notices when your iPhone is picked up or moved, to tell when you were awake. Only counts are kept.
         UIBackgroundModes: [audio]
         NSSupportsLiveActivities: true
         UILaunchScreen: {}

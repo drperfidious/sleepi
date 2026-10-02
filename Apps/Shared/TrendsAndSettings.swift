@@ -20,7 +20,9 @@ struct TrendsView: View {
     var body: some View {
         PageHeading(eyebrow: "Look at the longer story", title: "Patterns, without pressure.", subtitle: "One night is a moment. A few weeks tell you more.")
         Picker("Time range", selection: $days) { Text("7 days").tag(7); Text("30 days").tag(30); Text("90 days").tag(90) }.pickerStyle(.segmented)
-        if nights.isEmpty {
+        if model.showsPhoneNights {
+            PhoneTrends(model: model, nights: model.visiblePhoneNights.filter { ($0.end ?? $0.start) >= cutoff })
+        } else if nights.isEmpty {
             EmptyCard(symbol: "chart.xyaxis.line", title: "Patterns take a little time", detail: model.watchAvailable ? "Once Apple Watch has recorded your nights, you’ll see duration and schedule variation here. Missing nights stay missing." : "Once sleep is recorded, you’ll see duration and schedule variation here. Missing nights stay missing.")
         } else {
             Card {
@@ -38,6 +40,9 @@ struct TrendsView: View {
                 }.chartYScale(domain: 0...max(10, (chartNights.map { $0.asleepSeconds / 3600 }.max() ?? 0) + 1)).chartYAxis { AxisMarks(position: .leading) }.frame(height: 170)
                     .accessibilityLabel("Sleep duration chart for \(nights.count) recorded nights")
                 Text("Dashed line: your \(model.state.settings.targetHours.formatted())h target. No data is filled into missing nights.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                if !model.visiblePhoneNights.isEmpty {
+                    Text("\(model.visiblePhoneNights.count) phone night\(model.visiblePhoneNights.count == 1 ? "" : "s") left out: phone estimates and Apple Watch sleep aren’t mixed in one chart.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                }
                 if let c = corrected {
                     let parts = [c.leftOut.isEmpty ? nil : "\(c.leftOut.count) night\(c.leftOut.count == 1 ? "" : "s") the Watch stopped recording left out (\(dates(c.leftOut)))",
                                  c.merged.isEmpty ? nil : "\(c.merged.count) night\(c.merged.count == 1 ? "" : "s") with overlapping records merged (\(dates(c.merged)))"].compactMap { $0 }
@@ -180,6 +185,7 @@ struct SettingsView: View {
                 Eyebrow(text: "A shortcut to tonight")
                 Text("In Shortcuts, create a Sleep or Focus automation and add “Open Tonight in sleepi.” It opens the choice screen. Confirm microphone recording on the iPhone.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
+            PhoneTrackingCard(model: model)
             if model.watchAvailable { GentleWakeCard(model: model) }
             else {
                 // The one place a user looking for Watch features finds a word about them.
@@ -261,6 +267,75 @@ struct GentleWakeCard: View {
         case .deadline: return "Tapped at \(time), your chosen time"
         case .snoozed: return "Tapped at \(time), then snoozed"
         case .endedEarly, nil: return "Ended before a tap"
+        }
+    }
+}
+
+/// Trends for phone-only nights. Every figure except time in bed is an estimate, and says so.
+struct PhoneTrends: View {
+    @Bindable var model: AppModel
+    let nights: [PhoneNight]
+    var body: some View {
+        if nights.isEmpty {
+            EmptyCard(symbol: "chart.xyaxis.line", title: "Patterns take a little time", detail: "Phone nights you track appear here. Missing nights stay missing.")
+        } else {
+            let asleep = nights.compactMap { $0.estimate?.timeAsleep }
+            let inBed = nights.compactMap { n in n.end.map { $0.timeIntervalSince(n.start) } }
+            Card {
+                Eyebrow(text: "Time asleep · estimate")
+                Text(asleep.isEmpty ? "—" : "about " + DurationText.hoursMinutes(asleep.reduce(0, +) / Double(asleep.count))).font(.system(size: 34, weight: .light, design: .rounded))
+                Text("Average across \(asleep.count) phone nights").font(.caption).foregroundStyle(SleepiTheme.muted)
+                Chart {
+                    ForEach(nights) { n in
+                        if let t = n.estimate?.timeAsleep { BarMark(x: .value("Night", n.start, unit: .day), y: .value("Hours", t / 3600)).foregroundStyle(SleepiTheme.lavender.gradient).cornerRadius(3) }
+                    }
+                }.frame(height: 150).accessibilityLabel("Estimated time asleep for \(asleep.count) phone nights")
+                DetailLine(title: "In bed (measured)", value: inBed.isEmpty ? "—" : DurationText.hoursMinutes(inBed.reduce(0, +) / Double(inBed.count)))
+                let wakes = nights.compactMap { $0.estimate.map { Double($0.wakeUps.count) } }
+                DetailLine(title: "Wake-ups per night (estimate)", value: wakes.isEmpty ? "—" : String(format: "%.1f", wakes.reduce(0, +) / Double(wakes.count)))
+                let fell = nights.compactMap { $0.estimate?.fellAsleep }.map { Insights.clockMinutes($0, calendar: .current) }
+                if let mean = Insights.circularMean(fell) {
+                    DetailLine(title: "Fell asleep around (estimate)", value: String(format: "%02d:%02d", Int(mean) / 60, Int(mean) % 60))
+                }
+                let beds = nights.map { Insights.clockMinutes($0.start, calendar: .current) }
+                if beds.count >= 7, let mean = Insights.circularMean(beds) {
+                    let spread = sqrt(beds.reduce(0) { $0 + pow(Insights.circularDifference($1, mean), 2) } / Double(beds.count))
+                    DetailLine(title: "Bedtime variation (measured)", value: "±\(Int(spread)) min")
+                }
+                Text("Phones can tell quiet from restless, not sleep stages. An Apple Watch measures sleep stages.").font(.caption).foregroundStyle(SleepiTheme.muted)
+            }
+        }
+    }
+}
+
+/// Settings › Phone-only tracking: share a night's log, the hidden test switch, recalculate and the test comparison.
+struct PhoneTrackingCard: View {
+    @Bindable var model: AppModel
+    var body: some View {
+        Card {
+            Eyebrow(text: "Phone-only tracking")
+            let recent = model.phoneNights.filter { $0.end != nil }.suffix(7).reversed()
+            if recent.isEmpty { Text("No phone nights yet.").font(.caption).foregroundStyle(SleepiTheme.muted) }
+            ForEach(Array(recent)) { night in
+                HStack {
+                    Text("\(night.start.formatted(date: .abbreviated, time: .shortened))\(night.alongsideWatch == true ? " · test" : "")").font(.caption)
+                    Spacer()
+                    ShareLink(item: night.logCSV, preview: SharePreview("sleepi night log")) { Label("Share a night’s log", systemImage: "square.and.arrow.up").labelStyle(.iconOnly) }
+                        .accessibilityLabel("Share this night’s log")
+                }
+            }
+            Text("Logs are numbers only: sound levels, the room floor, motion counts, phone use and the estimates. No audio.").font(.caption).foregroundStyle(SleepiTheme.muted)
+            if model.watchAvailable {
+                Toggle("Also run phone tracking on Watch nights", isOn: Binding(get: { model.state.settings.phoneTrackingAlongsideWatch == true },
+                                                                                 set: { v in model.state.settings.phoneTrackingAlongsideWatch = v ? true : nil; Task { await model.persist() } })).font(.caption)
+                Text("For testing the phone method against your Watch: works on nights started from this iPhone. Results stay out of Last Night and Trends.").font(.caption).foregroundStyle(SleepiTheme.muted)
+                ForEach(model.phoneComparisons) { c in
+                    let m: (TimeInterval?) -> String = { v in v.map { "\(Int(($0 / 60).rounded())) min" } ?? "—" }
+                    Text("\(c.id.addingTimeInterval(86400).formatted(.dateTime.month(.abbreviated).day())): asleep \(m(c.fellAsleepDifference)), woke \(m(c.wokeDifference)), total \(m(c.timeAsleepDifference)), wake-ups ≥5 min \(c.phoneWakeUps) vs \(c.watchWakeUps)")
+                        .font(.caption2).foregroundStyle(SleepiTheme.muted)
+                }
+            }
+            Button("Recalculate phone nights") { Task { await model.recalculatePhoneNights() } }.font(.caption)
         }
     }
 }

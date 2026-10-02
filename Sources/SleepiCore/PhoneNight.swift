@@ -20,8 +20,13 @@ public struct PhoneEpoch: Codable, Equatable, Sendable {
     public var levelDB: Double?
     public var floorDB: Double?
     public var soundEvent: Bool
-    public init(start: Date, motion: Double? = nil, jerk: Double? = nil, levelDB: Double? = nil, floorDB: Double? = nil, soundEvent: Bool = false) {
+    /// The classifier's highest-scoring watched class in this epoch, for the tuning log.
+    public var topClass: String?
+    public var topScore: Double?
+    public init(start: Date, motion: Double? = nil, jerk: Double? = nil, levelDB: Double? = nil, floorDB: Double? = nil, soundEvent: Bool = false,
+                topClass: String? = nil, topScore: Double? = nil) {
         self.start = start; self.motion = motion; self.jerk = jerk; self.levelDB = levelDB; self.floorDB = floorDB; self.soundEvent = soundEvent
+        self.topClass = topClass; self.topScore = topScore
     }
     public var hasData: Bool { motion != nil || levelDB != nil }
 }
@@ -57,6 +62,9 @@ public struct PhoneNight: Codable, Identifiable, Sendable {
     public var events: [PhoneEvent] = []
     public var estimate: PhoneEstimate?
     public var estimateRuleVersion: Int?
+    /// Recorded with the hidden "also run phone tracking on Watch nights" test switch: kept for the log and the
+    /// comparison row only, never shown on Last Night or Trends.
+    public var alongsideWatch: Bool?
     /// The phone is assumed to sit beside the bed: a phone on the mattress or under the pillow overstated sleep by
     /// about 100 minutes in every independent test, so there's no mattress mode (research note 2).
     public init(id: UUID = UUID(), start: Date, calendar: Calendar = .current) {
@@ -75,6 +83,7 @@ public struct PhoneNight: Codable, Identifiable, Sendable {
             e.motion = e.motion ?? incoming.motion; e.jerk = e.jerk ?? incoming.jerk
             e.levelDB = e.levelDB ?? incoming.levelDB; e.floorDB = e.floorDB ?? incoming.floorDB
             e.soundEvent = e.soundEvent || incoming.soundEvent
+            e.topClass = e.topClass ?? incoming.topClass; e.topScore = e.topScore ?? incoming.topScore
             epochs[i] = e
         } else {
             var e = incoming; e.start = aligned
@@ -230,5 +239,33 @@ public struct MotionEpochAccumulator: Sendable {
         let motion = samples.reduce(0) { $0 + abs($1 - mean) }
         let jerk = zip(samples, samples.dropFirst()).map { abs($1 - $0) }.max() ?? 0
         return (begun, motion, jerk)
+    }
+}
+
+extension PhoneNight {
+    /// Settings › Phone-only tracking › "Share a night's log": every epoch and event plus the estimates. Numbers only.
+    public var logCSV: String {
+        let iso = ISO8601DateFormatter()
+        func f(_ v: Double?) -> String { v.map { String(format: "%.2f", $0) } ?? "" }
+        let estimate = self.estimate ?? (end.map { PhoneNightRule.estimate(epochs: epochs, events: events, start: start, end: $0) })
+        let use = Set((estimate?.wakeUps ?? []).filter { $0.kind == .phoneUse }.flatMap { w in
+            stride(from: w.start.timeIntervalSince1970, to: w.end.timeIntervalSince1970, by: PhoneNightRule.epoch).map { Int($0) }
+        })
+        var lines = ["epoch_start,level_dbfs,floor_dbfs,sound_event,top_class,top_score,motion_count,phone_use"]
+        for e in epochs {
+            lines.append([iso.string(from: e.start), f(e.levelDB), f(e.floorDB), e.soundEvent ? "1" : "0", e.topClass ?? "", f(e.topScore),
+                          f(e.motion), use.contains(Int(e.start.timeIntervalSince1970)) ? "1" : "0"].joined(separator: ","))
+        }
+        lines.append("")
+        lines.append("event,time")
+        for e in events { lines.append("\(e.kind.rawValue),\(iso.string(from: e.at))") }
+        lines.append("")
+        lines.append("# in bed \(iso.string(from: start)) to \(end.map(iso.string(from:)) ?? "open"), rule v\(estimateRuleVersion ?? PhoneNight.ruleVersion)")
+        if let e = estimate {
+            lines.append("# fell asleep \(e.fellAsleep.map(iso.string(from:)) ?? "unknown"), woke for good \(e.wokeForGood.map(iso.string(from:)) ?? "unknown")")
+            lines.append("# time asleep min \(e.timeAsleep.map { String(Int($0 / 60)) } ?? "unknown"), coverage \(Int((e.coverage * 100).rounded()))%, no data min \(Int(e.noDataSeconds / 60))")
+            for w in e.wakeUps { lines.append("# wake-up \(w.kind.rawValue) \(iso.string(from: w.start)) to \(iso.string(from: w.end))") }
+        }
+        return lines.joined(separator: "\n")
     }
 }

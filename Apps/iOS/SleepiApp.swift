@@ -8,7 +8,7 @@ import SleepiUI
     @State private var model: AppModel
     private let watchBridge: PhoneWatchBridge
     init() {
-        let model = AppModel(health: HealthKitReader(), audio: AudioRecorder())
+        let model = AppModel(health: HealthKitReader(), audio: AudioRecorder(), phone: PhoneSensor())
         let bridge = PhoneWatchBridge(model: model)
         watchBridge = bridge
         model.onLocalStoreReady = { [weak bridge] in bridge?.activate() }
@@ -26,6 +26,12 @@ import SleepiUI
                 try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "sleepi.morning", content: content, trigger: nil))
                 return true
             } catch { return false }
+        }
+        model.onPhoneNightReady = {
+            let content = UNMutableNotificationContent()
+            content.title = "Your night, estimated"
+            content.body = "Your phone night estimate is ready in sleepi."
+            try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "sleepi.phone-night", content: content, trigger: nil))
         }
         model.onSessionChanged = { [weak bridge] session in
             bridge?.sendContext()

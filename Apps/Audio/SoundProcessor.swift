@@ -22,6 +22,11 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
     private var levels = LevelHistogram()
     private var levelSamples: [Float] = []
     private var lastStatsReport: Double = 0
+    /// Phone-only nights: per-30-second level, room floor and sound-event flag. Clips are a separate choice.
+    private let saveClips: Bool
+    private let onEpoch: @MainActor @Sendable (PhoneEpoch) -> Void
+    private var activity = SoundActivityTracker()
+    private var epochTop: (label: String, score: Double)?
     private var ring: PCMWindow
     private var position: Int64 = 0
     private var lastClipEnd: Int64 = 0
@@ -40,11 +45,14 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
     public init(sampleRate: Double, directory: URL, byteBudget: Int, started: Date = .now,
                 onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void,
                 onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void = { _ in },
+                saveClips: Bool = true,
+                onEpoch: @escaping @MainActor @Sendable (PhoneEpoch) -> Void = { _ in },
                 onFailure: @escaping @MainActor @Sendable (String) -> Void) throws {
         guard sampleRate.isFinite, sampleRate >= 8000, sampleRate <= 192000,
               let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else { throw AudioProcessingError.unsupportedFormat }
         self.format = format; self.directory = directory; self.started = started; bytesRemaining = byteBudget
         self.onEvent = onEvent; self.onFailure = onFailure; self.onStats = onStats
+        self.saveClips = saveClips; self.onEpoch = onEpoch
         ring = PCMWindow(capacity: Int(sampleRate * 15))
         analyzer = SNAudioStreamAnalyzer(format: format)
         request = try SNClassifySoundRequest(classifierIdentifier: .version1)
@@ -98,11 +106,16 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
         let match = scored.filter { $0.confidence >= SoundThresholds.confidence(for: $0.kind) }.max { $0.confidence < $1.confidence }
         queue.async {
             guard self.running else { return }
+            if let top = result.classifications.first(where: { Self.labelMap[$0.identifier] != nil }), top.confidence > (self.epochTop?.score ?? 0) {
+                self.epochTop = (top.identifier, top.confidence)
+            }
+            // Speech or a cough above its bar marks the epoch as active for phone-only nights (snoring means asleep).
+            if let match, match.kind == .speech || match.kind == .coughing { self.activity.markClassifiedActivity() }
             for item in scored {
                 self.stats.best[item.kind.rawValue] = max(self.stats.best[item.kind.rawValue] ?? 0, item.confidence)
                 if item.confidence < SoundThresholds.confidence(for: item.kind), item.confidence >= SoundThresholds.nearMiss(for: item.kind) { self.stats.nearMisses += 1 }
             }
-            guard let match, self.pending == nil else { return }
+            guard self.saveClips, let match, self.pending == nil else { return }
             let kind = match.kind, confidence = match.confidence
             let a = Int64(start * self.format.sampleRate), b = Int64(end * self.format.sampleRate)
             guard a >= self.lastClipEnd, b > a else { return }
@@ -159,7 +172,14 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
         levelSamples.append(contentsOf: samples)
         let second = Int(format.sampleRate)
         while levelSamples.count >= second {
-            levels.add(PCMWindow.dbfs(Array(levelSamples.prefix(second)))); levelSamples.removeFirst(second)
+            let level = PCMWindow.dbfs(Array(levelSamples.prefix(second)))
+            levels.add(level); levelSamples.removeFirst(second)
+            let now = started.addingTimeInterval(stats.listenedSeconds)
+            if var epoch = activity.add(secondLevel: level, at: now) {
+                epoch.topClass = epochTop?.label; epoch.topScore = epochTop?.score; epochTop = nil
+                let finished = epoch
+                Task { @MainActor in self.onEpoch(finished) }
+            }
         }
         if stats.listenedSeconds - lastStatsReport >= 300 { reportStats() }
     }

@@ -156,20 +156,28 @@ public struct NightExportRow: Sendable {
     public var sounds: [SoundKind: Int]
     public var gentleWakeUsed: Bool
     public var wakeDecision: Date?
+    /// "watch" (Apple's sleep) or "phone" (sleepi's estimate from the iPhone alone).
+    public var source: String
+    public var inBedStart: Date?
+    public var inBedEnd: Date?
+    public var fellAsleep: Date?
+    public var wokeForGood: Date?
     public init(date: Date, appleTotalSleep: Double, toFallAsleep: Double?, wakeUps: Int, sleepingHeartRate: Double?, rating: Int?,
-                tags: [String], sounds: [SoundKind: Int], gentleWakeUsed: Bool, wakeDecision: Date?) {
+                tags: [String], sounds: [SoundKind: Int], gentleWakeUsed: Bool, wakeDecision: Date?, source: String = "watch",
+                inBedStart: Date? = nil, inBedEnd: Date? = nil, fellAsleep: Date? = nil, wokeForGood: Date? = nil) {
         self.date = date; self.appleTotalSleep = appleTotalSleep; self.toFallAsleep = toFallAsleep; self.wakeUps = wakeUps
         self.sleepingHeartRate = sleepingHeartRate; self.rating = rating; self.tags = tags; self.sounds = sounds
-        self.gentleWakeUsed = gentleWakeUsed; self.wakeDecision = wakeDecision
+        self.gentleWakeUsed = gentleWakeUsed; self.wakeDecision = wakeDecision; self.source = source
+        self.inBedStart = inBedStart; self.inBedEnd = inBedEnd; self.fellAsleep = fellAsleep; self.wokeForGood = wokeForGood
     }
 
     public static func csv(_ rows: [NightExportRow], calendar: Calendar = .current) -> String {
         let day = DateFormatter(); day.calendar = calendar; day.timeZone = calendar.timeZone; day.dateFormat = "yyyy-MM-dd"
         let time = DateFormatter(); time.calendar = calendar; time.timeZone = calendar.timeZone; time.dateFormat = "HH:mm"
         func cell(_ s: String) -> String { s.contains(where: { ",\"\n".contains($0) }) ? "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\"" : s }
-        var lines = ["date,apple_total_sleep_min,bed_to_first_sleep_min,wake_ups,sleeping_heart_rate_bpm,rating_1_to_5,tags,snoring_events,speech_events,cough_events,room_sound_events,gentle_wake_used,wake_decision_time"]
+        var lines = ["date,source,total_sleep_min,bed_to_first_sleep_min,wake_ups,sleeping_heart_rate_bpm,rating_1_to_5,tags,snoring_events,speech_events,cough_events,room_sound_events,gentle_wake_used,wake_decision_time,in_bed_start,in_bed_end,fell_asleep_estimate,woke_for_good_estimate"]
         for r in rows.sorted(by: { $0.date < $1.date }) {
-            var cells: [String] = [day.string(from: r.date), String(Int((r.appleTotalSleep / 60).rounded()))]
+            var cells: [String] = [day.string(from: r.date), r.source, String(Int((r.appleTotalSleep / 60).rounded()))]
             cells.append(r.toFallAsleep.map { String(Int(($0 / 60).rounded())) } ?? "")
             cells.append(String(r.wakeUps))
             cells.append(r.sleepingHeartRate.map { String(format: "%.1f", $0) } ?? "")
@@ -178,6 +186,7 @@ public struct NightExportRow: Sendable {
             for kind in [SoundKind.snoring, .speech, .coughing, .environment] { cells.append(String(r.sounds[kind] ?? 0)) }
             cells.append(r.gentleWakeUsed ? "yes" : "no")
             cells.append(r.wakeDecision.map { time.string(from: $0) } ?? "")
+            for d in [r.inBedStart, r.inBedEnd, r.fellAsleep, r.wokeForGood] { cells.append(d.map { time.string(from: $0) } ?? "") }
             lines.append(cells.joined(separator: ","))
         }
         return lines.joined(separator: "\n")

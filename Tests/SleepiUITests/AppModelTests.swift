@@ -18,8 +18,10 @@ import SleepiCore
     var eventCallback: (@MainActor @Sendable (SoundEvent) -> Void)?
     var playbackEnded: (@MainActor @Sendable () -> Void)?
     var statsCallback: (@MainActor @Sendable (SoundSessionStats) -> Void)?
-    func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void, onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void, onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws {
-        statsCallback = onStats
+    var epochCallback: (@MainActor @Sendable (PhoneEpoch) -> Void)?
+    var savedClips = true
+    func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void, onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void, saveClips: Bool, onEpoch: @escaping @MainActor @Sendable (PhoneEpoch) -> Void, onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        statsCallback = onStats; epochCallback = onEpoch; savedClips = saveClips
         if fail { throw NSError(domain: "test", code: 1) }
         starts += 1; isRecording = true; eventCallback = onEvent
     }
@@ -264,4 +266,41 @@ import SleepiCore
     let model = AppModel(directory: dir); await model.load(); await model.persist()
     let library = dir.appendingPathComponent("library.json")
     #expect(try library.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == false)
+}
+
+@MainActor private final class FakePhone: PhoneSensing {
+    var onEvent: (@MainActor @Sendable (PhoneEvent) -> Void)?
+    var started = 0
+    func start(onMotion: @escaping @MainActor @Sendable (PhoneEpoch) -> Void, onEvent: @escaping @MainActor @Sendable (PhoneEvent) -> Void) { started += 1; self.onEvent = onEvent }
+    func stop(nightStart: Date) async -> [PhoneEpoch] { [] }
+}
+
+@Test @MainActor func phoneOnlyNightRecordsListensWithoutClipsAndShowsWithoutAWatch() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let audio = FakeAudio(), phone = FakePhone()
+    let model = AppModel(audio: audio, phone: phone, directory: dir); await model.load()
+    await model.startTonight(sound: false, phoneTracking: true)
+    #expect(audio.starts == 1); #expect(!audio.savedClips); #expect(phone.started == 1) // listening, but no clips
+    let start = try #require(model.phoneNights.last).start
+    for i in 0..<120 { audio.epochCallback?(PhoneEpoch(start: start.addingTimeInterval(Double(i) * 30), levelDB: -60, floorDB: -61)) }
+    phone.onEvent?(PhoneEvent(.unlocked, at: start.addingTimeInterval(10)))
+    await model.stopTonight()
+    let night = try #require(model.phoneNights.last)
+    #expect(night.end != nil); #expect(night.estimate != nil); #expect(night.epochs.count == 120); #expect(night.events.count == 1)
+    #expect(model.showsPhoneNights); #expect(model.selectedPhoneNight?.id == night.id)
+    await model.setRating(4, nightID: night.nightID)
+    #expect(model.journal(nightID: night.nightID)?.rating == 4) // the diary works without Health sleep
+    let reopened = AppModel(directory: dir); await reopened.load()
+    #expect(reopened.phoneNights.count == 1); #expect(reopened.exportCSV.contains(",phone,"))
+}
+
+@Test @MainActor func testSwitchNightsStayOutOfLastNightAndTrends() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let model = AppModel(audio: FakeAudio(), phone: FakePhone(), directory: dir); await model.load()
+    model.watchAvailable = true
+    await model.startTonight(sound: false, phoneTracking: true, phoneOnly: false) // alongside a Watch night
+    await model.stopTonight()
+    #expect(model.phoneNights.last?.alongsideWatch == true); #expect(!model.showsPhoneNights)
 }

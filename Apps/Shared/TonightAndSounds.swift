@@ -41,14 +41,30 @@ struct StartSheet: View {
     @State private var sound = false
     @State private var gentle = false
     @State private var wake = Date.now
+    /// Phone-only tracking: always offered without a Watch; with one, for a night the Watch stays on its charger.
+    @State private var phoneOnly = false
+    @State private var trackSleep = true
+    private var phoneMode: Bool { !model.isDemo && (!model.watchAvailable || phoneOnly) }
+    /// The hidden test switch also listens on Watch nights started here, for the comparison log.
+    private var alongside: Bool { model.watchAvailable && !phoneOnly && model.state.settings.phoneTrackingAlongsideWatch == true }
     var body: some View {
         SheetFrame(title: "Make room for rest") {
-            Text(model.watchAvailable ? "Save an in-bed marker. Apple Watch continues its own sleep tracking." : "Save an in-bed marker, and record sound highlights on this iPhone if you like.").foregroundStyle(SleepiTheme.muted)
-            Card {
-                Toggle(isOn: $sound) { Label("Record sound highlights", systemImage: "waveform") }.disabled(!model.audioAvailable)
-                Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Your microphone listens on this iPhone. Short clips may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved. Sounds from other apps keep playing, and sleepi may hear them.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
-            }
+            Text(phoneMode ? "Your iPhone listens through the night to estimate when you fell asleep and woke up. Nothing is recorded unless you save highlights." : "Save an in-bed marker. Apple Watch continues its own sleep tracking.").foregroundStyle(SleepiTheme.muted)
             if model.watchAvailable && !model.isDemo {
+                Toggle(isOn: $phoneOnly) { Label("Phone only tonight", systemImage: "iphone") }
+                    .font(.subheadline)
+            }
+            if phoneMode || alongside {
+                Card {
+                    Toggle(isOn: $trackSleep) { Label(alongside ? "Phone tracking (test)" : "Track my sleep", systemImage: "waveform.path") }
+                    Text(trackSleep ? "Keep your phone on the bed stand, plugged in, out of the fan’s airflow." : "Only your in-bed time is saved tonight.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                }
+            }
+            Card {
+                Toggle(isOn: $sound) { Label(phoneMode ? "Save sound highlights" : "Record sound highlights", systemImage: "waveform") }.disabled(!model.audioAvailable)
+                Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Short clips of snoring, talking or coughing may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved. Sounds from other apps keep playing, and sleepi may hear them.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+            }
+            if model.watchAvailable && !model.isDemo && !phoneOnly {
                 Card {
                     Toggle(isOn: $gentle) { Label("Gentle wake on Apple Watch", systemImage: "applewatch") }
                         .onAppear { wake = model.suggestedGentleWake ?? Calendar.current.nextDate(after: .now, matching: DateComponents(hour: 7), matchingPolicy: .nextTime) ?? .now }
@@ -58,10 +74,11 @@ struct StartSheet: View {
                     }
                 }
             }
-            PrimaryButton(title: model.isStarting ? "Starting…" : sound ? "Start with microphone" : "Save my in-bed time", symbol: sound ? "mic" : "moon") {
+            let tracking = (phoneMode || alongside) && trackSleep
+            PrimaryButton(title: model.isStarting ? "Starting…" : tracking ? "Start tracking" : sound ? "Start with microphone" : "Save my in-bed time", symbol: tracking || sound ? "mic" : "moon") {
                 let components = Calendar.current.dateComponents([.hour, .minute], from: wake)
-                let wakeAt = gentle ? Calendar.current.nextDate(after: .now, matching: components, matchingPolicy: .nextTime) : nil
-                Task { await model.startTonight(sound: sound, gentleWake: wakeAt) }
+                let wakeAt = gentle && !phoneOnly ? Calendar.current.nextDate(after: .now, matching: components, matchingPolicy: .nextTime) : nil
+                Task { await model.startTonight(sound: sound, gentleWake: wakeAt, phoneTracking: tracking, phoneOnly: phoneMode) }
             }.disabled(model.isStarting)
         }
     }

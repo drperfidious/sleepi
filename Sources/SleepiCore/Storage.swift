@@ -86,6 +86,27 @@ public actor LocalRepository {
         // Persist an empty state first. A failed deletion can safely be retried on next launch.
         try save(LocalState())
         try removeOrphanClips(keeping: [])
+        let phone = directory.appendingPathComponent("PhoneNights")
+        if FileManager.default.fileExists(atPath: phone.path) { try FileManager.default.removeItem(at: phone) }
+    }
+    /// Phone nights live in their own files (epochs make them larger than the rest of the library).
+    public func savePhoneNight(_ night: PhoneNight) throws {
+        let dir = directory.appendingPathComponent("PhoneNights", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true); try Self.protect(dir) }
+        let url = dir.appendingPathComponent("\(night.id.uuidString).json")
+        #if os(iOS) || os(watchOS)
+        try JSONEncoder().encode(night).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        #else
+        try JSONEncoder().encode(night).write(to: url, options: .atomic)
+        #endif
+        try Self.protect(url)
+    }
+    public func loadPhoneNights() throws -> [PhoneNight] {
+        let dir = directory.appendingPathComponent("PhoneNights", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: dir.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil).filter { $0.pathExtension == "json" }
+            .compactMap { try? JSONDecoder().decode(PhoneNight.self, from: Data(contentsOf: $0)) }
+            .filter { $0.schemaVersion == 1 }.sorted { $0.start < $1.start }
     }
     /// Sets file protection. The library is included in iPhone/iCloud backups so notes and months of tags survive a
     /// phone change; only unstarred clips are excluded (`setExcludedFromBackup`), since they expire in 14 days anyway.

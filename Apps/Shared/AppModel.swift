@@ -16,10 +16,19 @@ public struct HealthLocked: Error, Sendable { public init() {} }
     var isRecording: Bool { get }
     func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void,
                onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void,
+               saveClips: Bool,
+               onEpoch: @escaping @MainActor @Sendable (PhoneEpoch) -> Void,
                onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws
     func stop() async
     func play(_ url: URL, onEnded: @escaping @MainActor @Sendable () -> Void) throws
     func stopPlayback()
+}
+
+/// The iPhone's own night signals for phone-only nights: motion counts (phone picked up or moved) and phone-use events.
+@MainActor public protocol PhoneSensing: AnyObject {
+    func start(onMotion: @escaping @MainActor @Sendable (PhoneEpoch) -> Void, onEvent: @escaping @MainActor @Sendable (PhoneEvent) -> Void)
+    /// Stops, and returns motion epochs read back from the system recorder to fill gaps, when it has any.
+    func stop(nightStart: Date) async -> [PhoneEpoch]
 }
 
 /// A night started or ended on this iPhone, for the Watch to mirror.
@@ -58,14 +67,19 @@ public enum SessionSyncEvent: Sendable {
     private var store: LocalRepository?
     private var health: (any HealthReading)?
     private var audio: (any AudioCapturing)?
+    private var phone: (any PhoneSensing)?
+    /// Phone-only nights, newest last. Stored in their own files.
+    public var phoneNights: [PhoneNight] = []
+    private var lastPhoneSave = Date.distantPast
+    public var onPhoneNightReady: (@MainActor () async -> Void)?
     private var canSave = false
     private var loaded = false
     private var captureGeneration: UUID?
     private var libraryFailed = false
     private var lockedRetries = 0
 
-    public init(demo: Bool = false, health: (any HealthReading)? = nil, audio: (any AudioCapturing)? = nil, directory: URL? = nil) {
-        isDemo = demo; self.health = health; self.audio = audio
+    public init(demo: Bool = false, health: (any HealthReading)? = nil, audio: (any AudioCapturing)? = nil, phone: (any PhoneSensing)? = nil, directory: URL? = nil) {
+        isDemo = demo; self.health = health; self.audio = audio; self.phone = phone
         if demo { loadDemo() }
         else {
             do {
@@ -128,6 +142,14 @@ public enum SessionSyncEvent: Sendable {
                 onSessionChanged?(activeSession)
                 try await store.removeOrphanClips(keeping: Set(state.sounds.compactMap(\.fileName)))
                 migrateDefaultTags()
+                // A phone night still open after a restart: the recording died with the process, so it ends at its last data.
+                phoneNights = (try? await store.loadPhoneNights()) ?? []
+                for i in phoneNights.indices where phoneNights[i].end == nil {
+                    phoneNights[i].end = phoneNights[i].epochs.last.map { $0.start.addingTimeInterval(PhoneNightRule.epoch) } ?? phoneNights[i].start
+                    phoneNights[i].events.append(PhoneEvent(.listeningStopped, at: phoneNights[i].end!))
+                    phoneNights[i].recalculate()
+                    try? await store.savePhoneNight(phoneNights[i])
+                }
                 // Older builds excluded everything from backup; now only unstarred clips are.
                 for event in state.sounds { if let name = event.fileName { try? await store.setClipBackedUp(name, event.starred) } }
                 await pruneClips()
@@ -189,13 +211,24 @@ public enum SessionSyncEvent: Sendable {
             if !background { self.error = error.localizedDescription }
         }
     }
-    public func startTonight(sound: Bool, gentleWake: Date? = nil) async {
+    /// `sound` saves highlight clips; `phoneTracking` listens all night for levels (and watches for phone use) to
+    /// estimate the night without a Watch. Either one turns the microphone on.
+    public func startTonight(sound: Bool, gentleWake: Date? = nil, phoneTracking: Bool = false, phoneOnly: Bool = false) async {
         guard activeSession == nil, !isStarting, !isStopping else { return }
         guard isDemo || canSave else { error = "Resolve the local storage issue before starting a night."; return }
         isStarting = true; defer { isStarting = false }
         audio?.stopPlayback(); playingID = nil
-        if sound { guard await beginCapture() else { return } }
-        var session = TonightSession(requestedAudio: sound, status: sound ? "Sound recording requested" : "In-bed marker only")
+        let micOn = sound || phoneTracking
+        if micOn { guard await beginCapture(saveClips: sound) else { return } }
+        var session = TonightSession(requestedAudio: micOn, status: sound ? "Sound recording requested" : phoneTracking ? "Listening for sound levels" : "In-bed marker only")
+        if phoneTracking {
+            var night = PhoneNight(start: session.start)
+            night.alongsideWatch = (watchAvailable && !phoneOnly) ? true : nil
+            phoneNights.append(night); session.phoneNightID = night.id
+            try? await store?.savePhoneNight(night); lastPhoneSave = .now
+            phone?.start(onMotion: { [weak self] epoch in self?.recordPhone(epoch: epoch) },
+                         onEvent: { [weak self] event in self?.recordPhone(event: event) })
+        }
         session.origin = .phone
         if let gentleWake, watchAvailable, gentleWake > Date.now.addingTimeInterval(5 * 60) { session.gentleWakeRequested = gentleWake }
         state.sessions.append(session); await persist()
@@ -212,7 +245,38 @@ public enum SessionSyncEvent: Sendable {
         state.sessions[index].requestedAudio = true; state.sessions[index].status = "Sound recording requested"
         await persist(); onSessionChanged?(state.sessions[index])
     }
-    private func beginCapture() async -> Bool {
+    private var activePhoneNightIndex: Int? { phoneNights.lastIndex { $0.end == nil } }
+    private func recordPhone(epoch: PhoneEpoch) {
+        guard let i = activePhoneNightIndex else { return }
+        phoneNights[i].merge(epoch); savePhoneNightIfDue(i)
+    }
+    private func recordPhone(event: PhoneEvent) {
+        guard let i = activePhoneNightIndex else { return }
+        phoneNights[i].events.append(event); savePhoneNightIfDue(i)
+    }
+    private func savePhoneNightIfDue(_ i: Int) {
+        guard Date.now.timeIntervalSince(lastPhoneSave) >= 600, let store else { return }
+        lastPhoneSave = .now
+        let night = phoneNights[i]
+        Task { try? await store.savePhoneNight(night) }
+    }
+    private func endPhoneNight(id: UUID, at end: Date) async {
+        guard let i = phoneNights.firstIndex(where: { $0.id == id }), phoneNights[i].end == nil else { return }
+        let fill = await phone?.stop(nightStart: phoneNights[i].start) ?? []
+        for epoch in fill { phoneNights[i].merge(epoch) }
+        phoneNights[i].end = end
+        phoneNights[i].recalculate()
+        try? await store?.savePhoneNight(phoneNights[i])
+        recomputeTagLinks()
+        if phoneNights[i].alongsideWatch != true, state.settings.morningNotifications { await onPhoneNightReady?() }
+    }
+    public func recalculatePhoneNights() async {
+        for i in phoneNights.indices where phoneNights[i].end != nil {
+            phoneNights[i].recalculate(); try? await store?.savePhoneNight(phoneNights[i])
+        }
+        recomputeTagLinks()
+    }
+    private func beginCapture(saveClips: Bool = true) async -> Bool {
         guard let audio, let store, !isDemo else { error = "Sound recording requires the iPhone app."; return false }
         await pruneClips()
         let remaining = state.settings.clipBudgetBytes - usedBytes
@@ -228,6 +292,9 @@ public enum SessionSyncEvent: Sendable {
                       let i = self.state.sessions.lastIndex(where: \.requestedAudio) else { return } // the night this capture belongs to
                 self.state.sessions[i].soundStats = stats
                 Task { await self.persist() }
+            }, saveClips: saveClips, onEpoch: { [weak self] epoch in
+                guard let self, self.captureGeneration == generation else { return }
+                self.recordPhone(epoch: epoch)
             }, onStatus: { [weak self] status in self?.recordingStatus = status })
             return true
         } catch { self.error = "Sound couldn’t start: \(error.localizedDescription)"; return false }
@@ -242,6 +309,7 @@ public enum SessionSyncEvent: Sendable {
         onSessionSync?(.ended(state.sessions[index]))
     }
     private func finishSession(at index: Int, end: Date, status: String) async {
+        if let phoneID = state.sessions[index].phoneNightID { await endPhoneNight(id: phoneID, at: end) }
         if index == state.sessions.lastIndex(where: { $0.end == nil }) { await audio?.stop(); recordingStatus = "Sound is off" }
         state.sessions[index].end = end; state.sessions[index].status = status
         onSessionChanged?(activeSession); await persist()
@@ -284,15 +352,17 @@ public enum SessionSyncEvent: Sendable {
         state.journals.removeAll { $0.nightID == journal.nightID }; state.journals.append(journal); await persist()
         recomputeTagLinks()
     }
-    public func journal(for night: SleepNight) -> NightJournal? { state.journals.last { $0.nightID == night.id } }
+    public func journal(for night: SleepNight) -> NightJournal? { journal(nightID: night.id) }
+    /// Diary entries are keyed by the night's date, so they work the same on Watch nights and phone nights.
+    public func journal(nightID: Date) -> NightJournal? { state.journals.last { $0.nightID == nightID } }
     /// Morning card: a rating or a chip saves right away, so the card can be one or two taps or skipped.
-    public func setRating(_ rating: Int?, for night: SleepNight) async {
-        var entry = journal(for: night) ?? NightJournal(nightID: night.id)
+    public func setRating(_ rating: Int?, nightID: Date) async {
+        var entry = journal(nightID: nightID) ?? NightJournal(nightID: nightID)
         entry.rating = rating.map { min(5, max(1, $0)) }
         await saveJournal(entry)
     }
-    public func toggleTag(_ tag: JournalTag, for night: SleepNight) async {
-        var entry = journal(for: night) ?? NightJournal(nightID: night.id)
+    public func toggleTag(_ tag: JournalTag, nightID: Date) async {
+        var entry = journal(nightID: nightID) ?? NightJournal(nightID: nightID)
         if entry.tagIDs.contains(tag.id) { entry.tagIDs.remove(tag.id) } else { entry.tagIDs.insert(tag.id) }
         await saveJournal(entry)
     }
@@ -345,9 +415,51 @@ public enum SessionSyncEvent: Sendable {
         return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
     public func toFallAsleep(for night: SleepNight) -> TimeInterval? { inBed(for: night)?.toFallAsleep ?? markerToFirstSleep(for: night) }
+    // MARK: Phone-only nights on screen
+    /// Phone nights shown on Last Night and Trends: finished, and not recorded with the hidden test switch.
+    public var visiblePhoneNights: [PhoneNight] { phoneNights.filter { $0.end != nil && $0.alongsideWatch != true } }
+    /// Watch nights win: phone nights appear only when there are no Watch nights to show.
+    public var showsPhoneNights: Bool { nights.isEmpty && !visiblePhoneNights.isEmpty }
+    public var selectedPhoneNight: PhoneNight? {
+        guard showsPhoneNights else { return nil }
+        return visiblePhoneNights.first { $0.nightID == selectedNightID } ?? visiblePhoneNights.last
+    }
+    /// Test switch comparison: phone estimate vs Apple's sleep on the same night (refs: phone-only note 2, section C).
+    public struct PhoneComparison: Identifiable, Sendable {
+        public var id: Date
+        public var fellAsleepDifference: TimeInterval?
+        public var wokeDifference: TimeInterval?
+        public var timeAsleepDifference: TimeInterval?
+        public var phoneWakeUps: Int
+        public var watchWakeUps: Int
+    }
+    public var phoneComparisons: [PhoneComparison] {
+        phoneNights.filter { $0.alongsideWatch == true && $0.estimate != nil }.compactMap { phoneNight -> PhoneComparison? in
+            guard let e = phoneNight.estimate, let watch = nights.first(where: { $0.id == phoneNight.nightID }) else { return nil }
+            let first = watch.firstSleep ?? watch.windowStart, last = watch.lastSleep ?? watch.windowEnd
+            let longWakes = watch.segments.filter { s in s.stage == .awake && s.seconds >= 300 && s.start >= first && s.end <= last }
+            return PhoneComparison(id: phoneNight.nightID,
+                                   fellAsleepDifference: e.fellAsleep.flatMap { p in watch.firstSleep.map { p.timeIntervalSince($0) } },
+                                   wokeDifference: e.wokeForGood.flatMap { p in watch.lastSleep.map { p.timeIntervalSince($0) } },
+                                   timeAsleepDifference: e.timeAsleep.map { $0 - watch.asleepSeconds },
+                                   phoneWakeUps: e.wakeUps.filter { $0.end.timeIntervalSince($0.start) >= 300 }.count, watchWakeUps: longWakes.count)
+        }
+    }
     public func recomputeTagLinks() {
         let leftOut = leftOutNights
         let calendar = Calendar.current
+        if showsPhoneNights {
+            // No Watch nights: link tags to the phone estimate (time asleep and wake-ups only).
+            let rows: [TagNight] = visiblePhoneNights.compactMap { night in
+                guard let entry = journal(nightID: night.nightID), let e = night.estimate else { return nil }
+                var measures: [TagMeasure: Double] = [.wakeUps: Double(e.wakeUps.count)]
+                if let asleep = e.timeAsleep { measures[.totalSleep] = asleep }
+                if let rating = entry.rating { measures[.rating] = Double(rating) }
+                let evening = calendar.component(.weekday, from: night.nightID)
+                return TagNight(weekend: evening == 6 || evening == 7, tags: entry.tagIDs, measures: measures)
+            }
+            evaluateTagLinks(rows); return
+        }
         let rows: [TagNight] = nights.compactMap { night in
             guard !leftOut.contains(night.id), let entry = journal(for: night) else { return nil } // unreviewed nights aren't a control group
             var measures: [TagMeasure: Double] = [.totalSleep: night.asleepSeconds, .wakeUps: Double(night.interruptions.count)]
@@ -357,6 +469,9 @@ public enum SessionSyncEvent: Sendable {
             let evening = calendar.component(.weekday, from: night.windowStart) // the night's evening: Fri (6), Sat (7) are weekend
             return TagNight(weekend: evening == 6 || evening == 7, tags: entry.tagIDs, measures: measures)
         }
+        evaluateTagLinks(rows)
+    }
+    private func evaluateTagLinks(_ rows: [TagNight]) {
         let tags = state.tags.map(\.id), seed = UInt64(rows.count) &* 0x9E37 &+ UInt64(state.journals.count)
         tagLinkGeneration += 1
         let generation = tagLinkGeneration
@@ -385,7 +500,17 @@ public enum SessionSyncEvent: Sendable {
                                   tags: (entry?.tagIDs ?? []).compactMap { names[$0] }.sorted(), sounds: sounds,
                                   gentleWakeUsed: log != nil, wakeDecision: log?.tappedAt)
         }
-        return NightExportRow.csv(rows)
+        let phoneRows = visiblePhoneNights.map { night -> NightExportRow in
+            let entry = journal(nightID: night.nightID)
+            var sounds: [SoundKind: Int] = [:]
+            for event in state.sounds where event.start >= night.start && event.start < (night.end ?? night.start) { sounds[event.kind, default: 0] += 1 }
+            let e = night.estimate
+            return NightExportRow(date: night.nightID, appleTotalSleep: e?.timeAsleep ?? 0, toFallAsleep: e?.fellAsleep.map { $0.timeIntervalSince(night.start) },
+                                  wakeUps: e?.wakeUps.count ?? 0, sleepingHeartRate: nil, rating: entry?.rating,
+                                  tags: (entry?.tagIDs ?? []).compactMap { names[$0] }.sorted(), sounds: sounds, gentleWakeUsed: false, wakeDecision: nil,
+                                  source: "phone", inBedStart: night.start, inBedEnd: night.end, fellAsleep: e?.fellAsleep, wokeForGood: e?.wokeForGood)
+        }
+        return NightExportRow.csv(rows + phoneRows)
     }
     public func persist() async {
         guard !isDemo, canSave, let store else { return }
@@ -463,7 +588,7 @@ public enum SessionSyncEvent: Sendable {
         await stopTonight(); audio?.stopPlayback(); playingID = nil
         captureGeneration = nil
         do {
-            try await store?.deleteAll(); state = LocalState(); canSave = store != nil
+            try await store?.deleteAll(); state = LocalState(); canSave = store != nil; phoneNights = []
             state.ignoreWatchRecordsBefore = .now
             await persist()
             snapshot = HealthSnapshot(samples: []); nights = []; showSettings = false; showOnboarding = true

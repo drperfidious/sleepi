@@ -65,5 +65,5 @@ private struct Simulation {
     let csv = NightExportRow.csv([NightExportRow(date: Date(timeIntervalSince1970: 1_780_358_400), appleTotalSleep: 25200, toFallAsleep: 600, wakeUps: 2,
                                                  sleepingHeartRate: 54.25, rating: 4, tags: ["Alcohol", "Late meal, big"], sounds: [.snoring: 3],
                                                  gentleWakeUsed: true, wakeDecision: Date(timeIntervalSince1970: 1_780_358_400 + 6.5 * 3600))], calendar: utc)
-    #expect(csv.components(separatedBy: "\n")[1] == "2026-06-02,420,10,2,54.2,4,\"Alcohol; Late meal, big\",3,0,0,0,yes,06:30")
+    #expect(csv.components(separatedBy: "\n")[1] == "2026-06-02,watch,420,10,2,54.2,4,\"Alcohol; Late meal, big\",3,0,0,0,yes,06:30,,,,")
 }

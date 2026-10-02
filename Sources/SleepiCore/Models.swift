@@ -158,6 +158,8 @@ public struct TonightSession: Codable, Identifiable, Sendable {
     public var gentleWakeRequested: Date?
     /// What the microphone heard this night, when sound was on.
     public var soundStats: SoundSessionStats?
+    /// The phone-only night recorded alongside this session, when phone tracking was on.
+    public var phoneNightID: UUID?
     public init(start: Date = .now, requestedAudio: Bool, status: String = "In bed") {
         self.start = start; self.requestedAudio = requestedAudio; self.status = status
     }
@@ -192,6 +194,8 @@ public struct AppSettings: Codable, Sendable {
     public var onboardingComplete: Bool = false
     /// Optional so libraries written before this field still load. Nil means the defaults.
     public var gentleWake: GentleWakeSettings?
+    /// Hidden test switch: also run phone tracking on nights with a Watch (results only in the log and a comparison row).
+    public var phoneTrackingAlongsideWatch: Bool?
     public init() {}
 }
 

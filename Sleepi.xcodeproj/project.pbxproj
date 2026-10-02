@@ -29,6 +29,7 @@
 		ABCD3487F554EEBAA2AFCF2D /* SleepiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */; };
 		C7962D64E521EADD43D770FD /* SleepiWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76CAC9B3EC9666A6401D310 /* SleepiWatchApp.swift */; };
 		C7ECE010C7F0D4D53AE1A3DD /* OpenTonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */; };
+		CEEBE772D53CC45FB06077BB /* PhoneSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5472388C5A05895DF2F0410 /* PhoneSensor.swift */; };
 		D9A5409B58026CEB78F0ACEA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */; };
 		DAEDC48D146890EB6E294FF4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */; };
 		E376AF5167B6D5198C5D4F52 /* OpenTonightIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A2315BF61E407FECFE9C62 /* OpenTonightIntent.swift */; };
@@ -100,12 +101,13 @@
 /* Begin PBXFileReference section */
 		011FCDCF00D200393F37D38E /* SleepiWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepiWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		133F3CA2869B5E556AC426B9 /* SleepActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepActivityAttributes.swift; sourceTree = "<group>"; };
-		190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		190FC7F25C05B6025581F47F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		35AF1E7C94A487C5886E4305 /* SleepiWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepiWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepiApp.swift; sourceTree = "<group>"; };
-		4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepiWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		6B37A2054AF53E223C6C9AD8 /* Sleepi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sleepi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DC84B73033D99857A43D5AB /* SleepiWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SleepiWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B37A2054AF53E223C6C9AD8 /* Sleepi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sleepi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A9A8E9C26A1A098C396ECDD /* iOSAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = iOSAssets.xcassets; sourceTree = "<group>"; };
+		B5472388C5A05895DF2F0410 /* PhoneSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSensor.swift; sourceTree = "<group>"; };
 		B79EB49753CB44AACA4B7575 /* WatchAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WatchAssets.xcassets; sourceTree = "<group>"; };
 		BD55105A78000F8C5CA8CE96 /* WatchPilot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPilot.swift; sourceTree = "<group>"; };
 		C1BE04BFBF02D0E72CE83E7E /* TonightIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonightIntent.swift; sourceTree = "<group>"; };
@@ -229,6 +231,7 @@
 			children = (
 				DC435CE226EF8336DCE41941 /* AudioRecorder.swift */,
 				D83E6E897A25792B9C6D4CD7 /* HealthKitReader.swift */,
+				B5472388C5A05895DF2F0410 /* PhoneSensor.swift */,
 				FAC6B15BABF9AF91955000FC /* PhoneWatchBridge.swift */,
 				3763D44DDFA4EFEFC39A9FF6 /* SleepiApp.swift */,
 				C1BE04BFBF02D0E72CE83E7E /* TonightIntent.swift */,
@@ -343,15 +346,19 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					3C261ACF0DF7909F5EF00F3A = {
+						DevelopmentTeam = L55NPDLDY2;
 						ProvisioningStyle = Automatic;
 					};
 					7823D58850AFB2FFEE2B036E = {
+						DevelopmentTeam = L55NPDLDY2;
 						ProvisioningStyle = Automatic;
 					};
 					972AEBDC9E446221D1331123 = {
+						DevelopmentTeam = L55NPDLDY2;
 						ProvisioningStyle = Automatic;
 					};
 					A6AA8321A6A9C237E3C0CB96 = {
+						DevelopmentTeam = L55NPDLDY2;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -426,6 +433,7 @@
 				70C2B17924A4FE0C28202358 /* AudioRecorder.swift in Sources */,
 				803D9884C783C199D30447F8 /* HealthKitReader.swift in Sources */,
 				C7ECE010C7F0D4D53AE1A3DD /* OpenTonightIntent.swift in Sources */,
+				CEEBE772D53CC45FB06077BB /* PhoneSensor.swift in Sources */,
 				1145445E5A25F3358E9ACA1B /* PhoneWatchBridge.swift in Sources */,
 				48B852865A02B091EDD806E5 /* SleepActivityAttributes.swift in Sources */,
 				ABCD3487F554EEBAA2AFCF2D /* SleepiApp.swift in Sources */,
@@ -489,7 +497,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/Sleepi.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/iOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -540,7 +547,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -576,7 +583,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/WatchWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -596,7 +602,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/Sleepi.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/iOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -614,7 +619,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Widgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -632,7 +636,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Watch-Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch;
 				SDKROOT = watchos;
@@ -645,7 +648,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Widgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -663,7 +665,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/WatchWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -681,7 +682,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = L55NPDLDY2;
 				INFOPLIST_FILE = "Config/Watch-Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = app.sleepi.ios.watch;
 				SDKROOT = watchos;
@@ -727,7 +727,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = L55NPDLDY2;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;

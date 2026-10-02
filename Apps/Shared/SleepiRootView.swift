@@ -74,7 +74,9 @@ struct LastNightView: View {
     @State private var journalOpen = false
     @State private var showRaw = false
     var body: some View {
-        if let night = model.selectedNight {
+        if let phoneNight = model.selectedPhoneNight {
+            PhoneNightView(model: model, night: phoneNight)
+        } else if let night = model.selectedNight {
             HStack(alignment: .top) {
                 PageHeading(eyebrow: "A little more understanding", title: "Rest, in perspective.", subtitle: "")
                 Spacer(minLength: 0)
@@ -95,7 +97,7 @@ struct LastNightView: View {
                 }.accessibilityElement(children: .ignore).accessibilityLabel("\(DurationText.hoursMinutes(night.asleepSeconds)) asleep")
                 HStack(spacing: 6) { Circle().fill(SleepiTheme.mint).frame(width: 5, height: 5); Text("Asleep · estimated by Apple Watch").font(.system(size: 12)).foregroundStyle(SleepiTheme.muted) }
             }
-            MorningCard(model: model, night: night)
+            MorningCard(model: model, nightID: night.id)
             Card {
                 HStack { Eyebrow(text: "The shape of your night"); Spacer(); Image(systemName: "applewatch").foregroundStyle(SleepiTheme.muted) }
                 NightChart(night: night)
@@ -172,8 +174,8 @@ struct LastNightView: View {
                 .sheet(isPresented: $journalOpen) { JournalSheet(model: model, night: night) }
                 .sheet(isPresented: $showRaw) { RawNightView(night: night, model: model) }
         } else {
-            PageHeading(eyebrow: "Good rest starts here", title: "Your night, made clear.", subtitle: model.watchAvailable ? "Apple does the sensing. sleepi helps you find the patterns." : "Start a night from Tonight to save your in-bed time and sound highlights.")
-            EmptyCard(symbol: "moon.stars", title: "Room for your first night", detail: model.healthStatus)
+            PageHeading(eyebrow: "Good rest starts here", title: "Your night, made clear.", subtitle: model.watchAvailable ? "Apple does the sensing. sleepi helps you find the patterns." : "")
+            EmptyCard(symbol: "moon.stars", title: "Room for your first night", detail: model.watchAvailable ? model.healthStatus : "Start a night from Tonight and keep your phone nearby. sleepi will estimate when you fell asleep, when you woke up, and what it heard. With an Apple Watch, sleepi also shows Apple’s sleep stages.")
             PrimaryButton(title: model.isLoading ? "Reading Apple Health…" : "Connect Apple Health", symbol: "heart") { Task { await model.connect() } }.disabled(model.isLoading)
             Card { Eyebrow(text: "Always yours"); Text("Your stages stay Apple’s. Your alarm stays yours.").font(.title3); Text("sleepi reads your sleep data and keeps your notes on this device. It cannot change your rings, sleep records, or Clock alarm.").font(.subheadline).foregroundStyle(SleepiTheme.muted).lineSpacing(5) }
         }
@@ -246,14 +248,14 @@ struct RawNightView: View {
 /// Optional morning sleep diary: a rating and chips for the evening before. Each tap saves; skipping is fine.
 struct MorningCard: View {
     @Bindable var model: AppModel
-    let night: SleepNight
+    let nightID: Date
     var body: some View {
-        let entry = model.journal(for: night)
+        let entry = model.journal(nightID: nightID)
         Card {
             Eyebrow(text: "How did you sleep?")
             HStack(spacing: 6) {
                 ForEach(1...5, id: \.self) { value in
-                    Button { Task { await model.setRating(entry?.rating == value ? nil : value, for: night) } } label: {
+                    Button { Task { await model.setRating(entry?.rating == value ? nil : value, nightID: nightID) } } label: {
                         Text(JournalTag.ratingTitles[value - 1]).font(.system(size: 11)).multilineTextAlignment(.center).lineLimit(2)
                             .frame(maxWidth: .infinity, minHeight: 40)
                             .background(entry?.rating == value ? SleepiTheme.lavender.opacity(0.25) : SleepiTheme.card, in: RoundedRectangle(cornerRadius: 10))
@@ -264,7 +266,7 @@ struct MorningCard: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(model.visibleTags) { tag in
                     let on = entry?.tagIDs.contains(tag.id) == true
-                    Button { Task { await model.toggleTag(tag, for: night) } } label: {
+                    Button { Task { await model.toggleTag(tag, nightID: nightID) } } label: {
                         Text(tag.name).font(.caption).lineLimit(2).frame(maxWidth: .infinity, minHeight: 34)
                             .background(on ? SleepiTheme.lavender.opacity(0.25) : SleepiTheme.card, in: RoundedRectangle(cornerRadius: 10))
                     }.buttonStyle(.plain).accessibilityAddTraits(on ? [.isSelected] : [])
@@ -272,5 +274,72 @@ struct MorningCard: View {
             }
             Text("Optional, and kept on this iPhone only, never in Health. Add or rename chips in Settings.").font(.system(size: 10)).foregroundStyle(SleepiTheme.muted)
         }
+    }
+}
+
+/// Last Night for a night recorded by the iPhone alone. Measured items are labelled measured; everything else is an estimate.
+struct PhoneNightView: View {
+    @Bindable var model: AppModel
+    let night: PhoneNight
+    private func t(_ d: Date?) -> String { d?.formatted(date: .omitted, time: .shortened) ?? "—" }
+    var body: some View {
+        let e = night.estimate
+        PageHeading(eyebrow: "Phone night · estimate", title: "Rest, in perspective.", subtitle: "")
+        if model.visiblePhoneNights.count > 1 {
+            Menu {
+                ForEach(model.visiblePhoneNights.reversed()) { n in Button(n.start.formatted(date: .abbreviated, time: .omitted)) { model.selectedNightID = n.nightID } }
+            } label: {
+                HStack(spacing: 7) { Text(night.start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())); Image(systemName: "chevron.down").font(.system(size: 9)) }.font(.system(size: 12)).foregroundStyle(SleepiTheme.muted)
+            }.menuStyle(.borderlessButton).fixedSize()
+        }
+        if let last = model.visiblePhoneNights.last, last.end.map({ Date.now.timeIntervalSince($0) > 30 * 3600 }) == true {
+            Text("No night recorded since then. Tap Start Tonight before bed.").font(.caption).foregroundStyle(SleepiTheme.muted)
+        }
+        Card {
+            DetailLine(title: "In bed (measured)", value: "\(t(night.start))–\(t(night.end))")
+            DetailLine(title: "Fell asleep around (estimate)", value: e?.fellAsleep.map { t($0) } ?? "Couldn’t tell")
+            DetailLine(title: "Woke for good around (estimate)", value: e?.wokeForGood.map { t($0) } ?? "Couldn’t tell")
+            DetailLine(title: "Time asleep (estimate)", value: e?.timeAsleep.map { "about " + DurationText.hoursMinutes($0) } ?? "Couldn’t tell")
+            if let e, e.noDataSeconds > 0 { Text("No data for \(DurationText.hoursMinutes(e.noDataSeconds)) (listening paused). That time isn’t counted as sleep.").font(.caption).foregroundStyle(SleepiTheme.muted) }
+        }
+        PhoneNightTimeline(night: night, sounds: model.state.sounds.filter { $0.start >= night.start && $0.start < (night.end ?? night.start) })
+        if let wakeUps = e?.wakeUps, !wakeUps.isEmpty {
+            Card {
+                Eyebrow(text: "Wake-ups")
+                ForEach(wakeUps, id: \.start) { w in
+                    Text(w.kind == .phoneUse ? "Used phone \(t(w.start))–\(t(w.end))" : "Restless \(t(w.start))–\(t(w.end)), maybe awake").font(.subheadline)
+                }
+            }
+        }
+        MorningCard(model: model, nightID: night.nightID)
+        Text("From your iPhone’s microphone and motion. Phones can tell quiet from restless, not light, deep or REM sleep. An Apple Watch measures sleep stages.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3)
+    }
+}
+
+/// In-bed band, quiet stretches shaded, phone use and restless marks on top, sound highlights as dots.
+struct PhoneNightTimeline: View {
+    let night: PhoneNight
+    let sounds: [SoundEvent]
+    var body: some View {
+        let end = night.end ?? night.start.addingTimeInterval(1)
+        let total = max(1, end.timeIntervalSince(night.start))
+        GeometryReader { geo in
+            let w = geo.size.width
+            let x: (Date) -> CGFloat = { d in CGFloat(d.timeIntervalSince(night.start) / total) * w }
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 6).fill(SleepiTheme.card).frame(height: 34).offset(y: 10)
+                if let e = night.estimate, let f = e.fellAsleep, let k = e.wokeForGood {
+                    RoundedRectangle(cornerRadius: 4).fill(SleepiTheme.lavender.opacity(0.35)).frame(width: max(2, x(k) - x(f)), height: 34).offset(x: x(f), y: 10)
+                    ForEach(e.wakeUps, id: \.start) { wake in
+                        Rectangle().fill(wake.kind == .phoneUse ? SleepiTheme.ink.opacity(0.8) : SleepiTheme.mint.opacity(0.8))
+                            .frame(width: max(2, x(wake.end) - x(wake.start)), height: 34).offset(x: x(wake.start), y: 10)
+                    }
+                }
+                ForEach(sounds) { s in Circle().fill(SleepiTheme.mint).frame(width: 6, height: 6).offset(x: x(s.start) - 3, y: 0) }
+            }
+        }
+        .frame(height: 48)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Night timeline: quiet stretches shaded, wake-ups marked, \(sounds.count) sound highlights")
     }
 }

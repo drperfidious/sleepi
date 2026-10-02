@@ -35,6 +35,8 @@
 	<string>sleepi reads your Apple Watch sleep and overnight measurements to help you understand your nights. It never writes to Health.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>With your confirmation, sleepi listens for room sounds and keeps short highlights on this iPhone.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>On phone-only nights, sleepi notices when your iPhone is picked up or moved, to tell when you were awake. Only counts are kept.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
