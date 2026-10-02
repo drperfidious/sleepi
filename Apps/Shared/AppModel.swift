@@ -15,6 +15,7 @@ public struct HealthLocked: Error, Sendable { public init() {} }
 @MainActor public protocol AudioCapturing: AnyObject {
     var isRecording: Bool { get }
     func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void,
+               onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void,
                onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws
     func stop() async
     func play(_ url: URL, onEnded: @escaping @MainActor @Sendable () -> Void) throws
@@ -217,6 +218,11 @@ public enum SessionSyncEvent: Sendable {
             try await audio.start(directory: await store.directory.appendingPathComponent("Clips"), remainingBytes: min(remaining, 20_000_000), onEvent: { [weak self] event in
                 guard let self, self.captureGeneration == generation else { return }
                 self.state.sounds.append(event)
+                Task { await self.persist() }
+            }, onStats: { [weak self] stats in
+                guard let self, self.captureGeneration == generation,
+                      let i = self.state.sessions.lastIndex(where: \.requestedAudio) else { return } // the night this capture belongs to
+                self.state.sessions[i].soundStats = stats
                 Task { await self.persist() }
             }, onStatus: { [weak self] status in self?.recordingStatus = status })
             return true

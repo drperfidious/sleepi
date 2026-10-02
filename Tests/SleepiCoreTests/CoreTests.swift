@@ -240,3 +240,12 @@ private func versioned(_ a: Double, _ b: Double, _ os: String) -> SleepSample {
     // Wake time reached: no snooze, Apple's alarm takes over.
     #expect(SnoozePlan.plan(now: latest, latest: latest) == nil)
 }
+
+@Test func nightlyRoomLevelIsAMedianAndBarsArePerLabel() {
+    var levels = LevelHistogram()
+    for value in [-60.0, -40, -40, -40, -10] { levels.add(value) }
+    #expect(levels.median == -40) // a few loud moments don't move a fan-steady floor
+    #expect(LevelHistogram().median == nil)
+    #expect(SoundThresholds.confidence(for: .snoring) < 0.8) // 0.8 for everything missed masked snoring
+    #expect(SoundThresholds.nearMiss(for: .snoring) < SoundThresholds.confidence(for: .snoring))
+}

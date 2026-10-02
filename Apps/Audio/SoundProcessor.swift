@@ -17,6 +17,11 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
     private let started: Date
     private let onEvent: @MainActor @Sendable (SoundEvent) -> Void
     private let onFailure: @MainActor @Sendable (String) -> Void
+    private let onStats: @MainActor @Sendable (SoundSessionStats) -> Void
+    private var stats = SoundSessionStats()
+    private var levels = LevelHistogram()
+    private var levelSamples: [Float] = []
+    private var lastStatsReport: Double = 0
     private var ring: PCMWindow
     private var position: Int64 = 0
     private var lastClipEnd: Int64 = 0
@@ -34,11 +39,12 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
     ]
     public init(sampleRate: Double, directory: URL, byteBudget: Int, started: Date = .now,
                 onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void,
+                onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void = { _ in },
                 onFailure: @escaping @MainActor @Sendable (String) -> Void) throws {
         guard sampleRate.isFinite, sampleRate >= 8000, sampleRate <= 192000,
               let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else { throw AudioProcessingError.unsupportedFormat }
         self.format = format; self.directory = directory; self.started = started; bytesRemaining = byteBudget
-        self.onEvent = onEvent; self.onFailure = onFailure
+        self.onEvent = onEvent; self.onFailure = onFailure; self.onStats = onStats
         ring = PCMWindow(capacity: Int(sampleRate * 15))
         analyzer = SNAudioStreamAnalyzer(format: format)
         request = try SNClassifySoundRequest(classifierIdentifier: .version1)
@@ -65,6 +71,7 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
             self.ring.append(samples)
             self.analyzer.analyze(buffer, atAudioFramePosition: self.position)
             self.position += Int64(samples.count)
+            self.track(samples)
             self.flushCandidate()
             if Double(self.position) / self.format.sampleRate >= 12 * 3600 { self.fail("Recording ended at the 12-hour limit.") }
         }
@@ -74,6 +81,7 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
             queue.async {
                 // Pending incomplete highlights are discarded; no invented post-roll.
                 self.running = false; self.pending = nil
+                self.reportStats()
                 self.analyzer.removeAllRequests()
                 self.ring = PCMWindow(capacity: 1)
                 continuation.resume()
@@ -85,10 +93,17 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
         let start = result.timeRange.start.seconds
         let end = CMTimeRangeGetEnd(result.timeRange).seconds
         guard start.isFinite, end.isFinite else { return }
-        guard let match = result.classifications.first(where: { Self.labelMap[$0.identifier] != nil && $0.confidence >= 0.8 }), let kind = Self.labelMap[match.identifier] else { return }
-        let confidence = match.confidence
+        // Each label is judged against its own bar, so a steady fan ranked above it doesn't hide a quieter snore.
+        let scored = result.classifications.compactMap { c in Self.labelMap[c.identifier].map { (kind: $0, confidence: c.confidence) } }
+        let match = scored.filter { $0.confidence >= SoundThresholds.confidence(for: $0.kind) }.max { $0.confidence < $1.confidence }
         queue.async {
-            guard self.running, self.pending == nil else { return }
+            guard self.running else { return }
+            for item in scored {
+                self.stats.best[item.kind.rawValue] = max(self.stats.best[item.kind.rawValue] ?? 0, item.confidence)
+                if item.confidence < SoundThresholds.confidence(for: item.kind), item.confidence >= SoundThresholds.nearMiss(for: item.kind) { self.stats.nearMisses += 1 }
+            }
+            guard let match, self.pending == nil else { return }
+            let kind = match.kind, confidence = match.confidence
             let a = Int64(start * self.format.sampleRate), b = Int64(end * self.format.sampleRate)
             guard a >= self.lastClipEnd, b > a else { return }
             self.pending = Candidate(start: a, end: b, kind: kind, confidence: confidence)
@@ -122,7 +137,7 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
             guard bytes > 0, bytes <= bytesRemaining else {
                 try FileManager.default.removeItem(at: url); fail("Clip budget reached. Sound recording stopped."); return
             }
-            bytesRemaining -= bytes; lastClipEnd = b
+            bytesRemaining -= bytes; lastClipEnd = b; stats.saved += 1
             let event = SoundEvent(start: started.addingTimeInterval(Double(candidate.start) / rate), end: started.addingTimeInterval(Double(candidate.end) / rate), kind: candidate.kind, confidence: candidate.confidence, levelDBFS: level, fileName: name, byteCount: bytes)
             Task { @MainActor in self.onEvent(event) }
         } catch {
@@ -137,8 +152,24 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
         let file = try AVAudioFile(forWriting: url, settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: format.sampleRate, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32_000], commonFormat: .pcmFormatFloat32, interleaved: false)
         try file.write(from: pcm)
     }
+    /// One level reading per second of audio, and a summary for the night every five minutes and at the end.
+    private func track(_ samples: [Float]) {
+        stats.listenedSeconds += Double(samples.count) / format.sampleRate
+        levelSamples.append(contentsOf: samples)
+        let second = Int(format.sampleRate)
+        while levelSamples.count >= second {
+            levels.add(PCMWindow.dbfs(Array(levelSamples.prefix(second)))); levelSamples.removeFirst(second)
+        }
+        if stats.listenedSeconds - lastStatsReport >= 300 { reportStats() }
+    }
+    private func reportStats() {
+        lastStatsReport = stats.listenedSeconds
+        stats.roomLevelDBFS = levels.median
+        let snapshot = stats
+        Task { @MainActor in self.onStats(snapshot) }
+    }
     private func fail(_ message: String) {
-        guard running else { return }; running = false
+        guard running else { return }; running = false; reportStats()
         Task { @MainActor in self.onFailure(message) }
     }
 }

@@ -75,6 +75,17 @@ struct SoundsView: View {
     var body: some View {
         PageHeading(eyebrow: "The things you slept through", title: "A quieter kind of replay.", subtitle: "Short moments, kept on your iPhone.")
         HStack { Text("\(Double(model.usedBytes) / 1_000_000, specifier: "%.1f") MB of 300 MB"); Spacer(); Image(systemName: "lock.shield") }.font(.caption).foregroundStyle(SleepiTheme.muted)
+        if let last = model.state.sessions.last(where: { $0.soundStats != nil }), let heard = last.soundStats {
+            Card {
+                Eyebrow(text: "Last listening · \(last.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))")
+                Text("Listened \(DurationText.hoursMinutes(heard.listenedSeconds)) · \(heard.saved) highlight\(heard.saved == 1 ? "" : "s") saved").font(.subheadline)
+                if let level = heard.roomLevelDBFS { DetailLine(title: "Typical room level", value: "\(Int(level)) dBFS") }
+                ForEach([SoundKind.snoring, .speech, .coughing], id: \.self) { kind in
+                    DetailLine(title: "Closest \(kind == .snoring ? "snoring" : kind.title.lowercased())", value: "\(Int(((heard.best[kind.rawValue] ?? 0) * 100).rounded()))% · saves at \(Int(SoundThresholds.confidence(for: kind) * 100))%")
+                }
+                Text(heard.nearMisses == 0 && heard.saved == 0 ? "Nothing came close, so it was most likely a quiet night." : "\(heard.nearMisses) near miss\(heard.nearMisses == 1 ? "" : "es"): sounds the classifier wasn't sure enough about. A steady fan lowers its certainty.").font(.caption).foregroundStyle(SleepiTheme.muted)
+            }
+        }
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 filterPill("All", kind: nil)

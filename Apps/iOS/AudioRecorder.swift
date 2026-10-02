@@ -14,6 +14,7 @@ import SleepiAudio
     private var onStatus: (@MainActor @Sendable (String) -> Void)?
     var isRecording: Bool { engine?.isRunning == true }
     func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void,
+               onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void,
                onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard UIApplication.shared.applicationState == .active else { throw RecordingError.foregroundRequired }
         guard await AVAudioApplication.requestRecordPermission() else { throw RecordingError.permissionDenied }
@@ -32,7 +33,7 @@ import SleepiAudio
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
             guard format.channelCount > 0, format.sampleRate > 0, !format.isInterleaved, format.commonFormat == .pcmFormatFloat32 else { throw RecordingError.format }
-            let processor = try SoundProcessor(sampleRate: format.sampleRate, directory: directory, byteBudget: remainingBytes, onEvent: onEvent, onFailure: { [weak self] message in
+            let processor = try SoundProcessor(sampleRate: format.sampleRate, directory: directory, byteBudget: remainingBytes, onEvent: onEvent, onStats: onStats, onFailure: { [weak self] message in
                 Task { @MainActor in await self?.stop(); self?.onStatus?(message) }
             })
             Self.installTap(on: input, format: format, feeding: processor)

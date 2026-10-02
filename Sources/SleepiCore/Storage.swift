@@ -109,3 +109,47 @@ public struct PCMWindow: Sendable {
         return max(-120, 10 * log10(max(1e-12, power)))
     }
 }
+
+/// Per-label confidence the on-device classifier must reach before a highlight is saved. The built-in classifier
+/// spreads its confidence when a steady sound such as a fan is also present, so 0.8 for every label missed
+/// masked snoring and speech. These are starting points to tune with the nightly listening summary.
+public enum SoundThresholds {
+    public static func confidence(for kind: SoundKind) -> Double {
+        switch kind {
+        case .snoring, .coughing: 0.5
+        case .speech: 0.6
+        case .environment: 0.7
+        }
+    }
+    /// Below the bar but close: counted so a night with no highlights shows whether anything came near.
+    public static func nearMiss(for kind: SoundKind) -> Double { confidence(for: kind) * 0.6 }
+}
+
+/// What one listening session heard, saved with the night so "no highlights" can be told apart from "nothing happened".
+public struct SoundSessionStats: Codable, Equatable, Sendable {
+    public var listenedSeconds: Double = 0
+    /// Typical microphone level (median of 1-second readings). A fan or white noise raises it.
+    public var roomLevelDBFS: Double?
+    /// Highest classifier confidence per kind (SoundKind raw value), saved or not.
+    public var best: [String: Double] = [:]
+    public var nearMisses: Int = 0
+    public var saved: Int = 0
+    public init() {}
+}
+
+/// 1-dB bins from −120 to 0 dBFS, so a night's median level needs no stored audio.
+public struct LevelHistogram: Sendable {
+    private var bins = [Int](repeating: 0, count: 121)
+    private(set) var count = 0
+    public init() {}
+    public mutating func add(_ dbfs: Double) {
+        guard dbfs.isFinite else { return }
+        bins[min(120, max(0, Int((dbfs + 120).rounded())))] += 1; count += 1
+    }
+    public var median: Double? {
+        guard count > 0 else { return nil }
+        var seen = 0
+        for (i, n) in bins.enumerated() { seen += n; if seen * 2 >= count { return Double(i) - 120 } }
+        return nil
+    }
+}

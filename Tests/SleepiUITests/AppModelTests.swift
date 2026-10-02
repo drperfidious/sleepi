@@ -17,7 +17,9 @@ import SleepiCore
     var fail = false
     var eventCallback: (@MainActor @Sendable (SoundEvent) -> Void)?
     var playbackEnded: (@MainActor @Sendable () -> Void)?
-    func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void, onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws {
+    var statsCallback: (@MainActor @Sendable (SoundSessionStats) -> Void)?
+    func start(directory: URL, remainingBytes: Int, onEvent: @escaping @MainActor @Sendable (SoundEvent) -> Void, onStats: @escaping @MainActor @Sendable (SoundSessionStats) -> Void, onStatus: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        statsCallback = onStats
         if fail { throw NSError(domain: "test", code: 1) }
         starts += 1; isRecording = true; eventCallback = onEvent
     }
@@ -230,4 +232,14 @@ import SleepiCore
     await model.startTonight(sound: false, gentleWake: wake)
     guard case .started(let night)? = log.events.last else { Issue.record("Watch not told"); return }
     #expect(night.gentleWakeRequested == wake)
+}
+
+@Test @MainActor func listeningSummaryIsKeptWithTheNightAfterItEnds() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let audio = FakeAudio(); let model = AppModel(audio: audio, directory: dir); await model.load()
+    await model.startTonight(sound: true); await model.stopTonight()
+    var heard = SoundSessionStats(); heard.listenedSeconds = 7 * 3600; heard.nearMisses = 3
+    audio.statsCallback?(heard) // the final summary arrives just after stopping
+    #expect(model.state.sessions.last?.soundStats == heard)
 }

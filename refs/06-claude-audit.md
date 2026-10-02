@@ -84,6 +84,8 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 - **Locked-phone Health alert:** unlocking the iPhone triggered a scene-activation refresh before Health was readable. HealthKit's `errorDatabaseInaccessible` ("Protected health data is inaccessible") went to the generic alert and blanked the nights. It now maps to `HealthLocked`, which shows no alert, keeps the nights on screen and retries up to 3 times, 3 s apart (regression test).
 - **Gentle wake from iPhone:** with a paired Watch that has sleepi installed, the iPhone Start sheet offers Gentle wake and a wake time. The time travels with the night (`gentleWakeRequested`). Because only the foreground Watch app can call `WKExtendedRuntimeSession.start(at:)`, the Watch shows a one-tap "Set gentle wake" button, using the window and movement setting from Settings.
 
+- **No highlights on night 1 (fan running):** every label needed classifier confidence ≥ 0.8. The built-in classifier spreads its confidence when a steady sound such as a fan is present, so masked snoring or speech rarely reached it. The bars are now per label (`SoundThresholds`: snoring and cough 0.5, speech 0.6, room sounds 0.7). Each label is judged against its own bar, even when the fan ranks above it. Each night also saves a listening summary (`SoundSessionStats`: time listened, median room level in dBFS, best confidence per label, near misses, highlights saved), shown in Sounds, so a quiet night can be told apart from a bar that's too high. The bars are starting points, to tune from these summaries.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |

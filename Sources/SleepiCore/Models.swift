@@ -156,6 +156,8 @@ public struct TonightSession: Codable, Identifiable, Sendable {
     /// A gentle-wake time chosen on iPhone. The Watch app has to schedule it itself (Apple only lets the
     /// foreground Watch app arm its smart alarm), so the Watch asks for one tap to set it.
     public var gentleWakeRequested: Date?
+    /// What the microphone heard this night, when sound was on.
+    public var soundStats: SoundSessionStats?
     public init(start: Date = .now, requestedAudio: Bool, status: String = "In bed") {
         self.start = start; self.requestedAudio = requestedAudio; self.status = status
     }
