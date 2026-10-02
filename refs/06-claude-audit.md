@@ -96,6 +96,18 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
   2. **Export:** a CSV of sleepi's own per-night data from Settings, via the share sheet.
   3. **Backup:** the whole library had been excluded from backup (an earlier deliberate choice). Now the library is backed up, and only unstarred clips are excluded; starring includes a clip.
 
+- **Phone-only nights** (research notes 1 and 2; core in `Sources/SleepiCore/PhoneNight.swift`, sensors in `Apps/iOS/PhoneSensor.swift`):
+  - The phone sits on the bed stand; mattress mode was dropped per note 2. Phone tracking listens for levels all night, and clips are a separate choice.
+  - Sound activity is the epoch level, a rolling 10th-percentile floor over 10 minutes, and an event at ≥ 6 dB above the floor or speech or a cough above its bar.
+  - Phone use comes from unlock/lock, opening sleepi and the phone being picked up (10 Hz motion counts). Plug/unplug is logged.
+  - Calls and alarms pause listening, which then tries to resume; if iOS refuses, a notification asks for a tap.
+  - The `PhoneNightRule` estimate gives fell asleep, woke for good, phone-use and "maybe awake" wake-ups, and time asleep. No-data time is excluded, never counted as sleep.
+  - Phone nights live in their own files with the rule version, and can be recalculated.
+  - Phone nights appear only when there are no Watch nights. The diary, linked results (time asleep and wake-ups), export (source column) and the end-of-night notification all work on them.
+  - Settings has a shareable night log and a hidden switch that runs phone tracking alongside Watch nights started from the iPhone, plus a comparison row for Randy's 7-night test.
+  - Still to check on a device: the 8-hour locked run, the battery figure, and resuming after a call or alarm.
+- **Repository:** public at github.com/drperfidious/sleepi under GPL-3.0. Commit emails were rewritten to the GitHub noreply address before the first push.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |
