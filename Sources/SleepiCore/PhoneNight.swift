@@ -1,11 +1,5 @@
 import Foundation
 
-/// Where the phone sits overnight, asked once in Start Tonight and remembered.
-public enum PhonePlacement: String, Codable, CaseIterable, Sendable {
-    case bedStand, mattress
-    public var title: String { self == .bedStand ? "On the bed stand" : "On the mattress" }
-}
-
 /// Things the phone notices that mean someone is using it, or that recording stopped.
 public struct PhoneEvent: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, Sendable {
@@ -59,13 +53,14 @@ public struct PhoneNight: Codable, Identifiable, Sendable {
     public var nightID: Date
     public var start: Date
     public var end: Date?
-    public var placement: PhonePlacement
     public var epochs: [PhoneEpoch] = []
     public var events: [PhoneEvent] = []
     public var estimate: PhoneEstimate?
     public var estimateRuleVersion: Int?
-    public init(id: UUID = UUID(), start: Date, placement: PhonePlacement, calendar: Calendar = .current) {
-        self.id = id; self.start = start; self.placement = placement
+    /// The phone is assumed to sit beside the bed: a phone on the mattress or under the pillow overstated sleep by
+    /// about 100 minutes in every independent test, so there's no mattress mode (research note 2).
+    public init(id: UUID = UUID(), start: Date, calendar: Calendar = .current) {
+        self.id = id; self.start = start
         nightID = NightBuilder.window(containing: start, calendar: calendar).start
     }
     /// Motion and sound arrive separately; both land in the same 30-second slot counted from the night's start.
@@ -89,7 +84,7 @@ public struct PhoneNight: Codable, Identifiable, Sendable {
     /// Re-run the current rule, for instance after tuning ("Recalculate" in Settings).
     public mutating func recalculate() {
         guard let end else { return }
-        estimate = PhoneNightRule.estimate(epochs: epochs, events: events, start: start, end: end, placement: placement)
+        estimate = PhoneNightRule.estimate(epochs: epochs, events: events, start: start, end: end)
         estimateRuleVersion = Self.ruleVersion
     }
 }
@@ -99,12 +94,10 @@ public enum PhoneNightRule {
     public static let epoch: TimeInterval = 30
     /// 20 quiet minutes, allowing up to 2 active epochs.
     static let quietRun = 40, quietAllowance = 2
-    /// Motion counts below this never count as restless, however low the night's 90th percentile is.
-    public static let minimumMovementBar = 0.5
-    /// On the bed stand, a count above this is the phone being picked up or moved.
+    /// A count above this is the phone being picked up or moved, treated like phone use.
     public static let phoneMovedBar = 3.0
 
-    public static func estimate(epochs input: [PhoneEpoch], events: [PhoneEvent], start: Date, end: Date, placement: PhonePlacement) -> PhoneEstimate {
+    public static func estimate(epochs input: [PhoneEpoch], events: [PhoneEvent], start: Date, end: Date) -> PhoneEstimate {
         let count = max(0, Int((end.timeIntervalSince(start) / epoch).rounded(.up)))
         var epochs = [PhoneEpoch?](repeating: nil, count: count)
         for e in input {
@@ -114,7 +107,7 @@ public enum PhoneNightRule {
         func index(_ date: Date) -> Int { Int((date.timeIntervalSince(start) / epoch).rounded(.down)) }
         let hasData = epochs.map { $0?.hasData == true }
 
-        // Phone use: unlock→lock and open→close spans, plus "phone moved" on the bed stand, each ±1 epoch.
+        // Phone use: unlock→lock and open→close spans, plus "phone moved", each ±1 epoch.
         var certain = [Bool](repeating: false, count: count)
         var useSpans: [(Date, Date)] = []
         func spans(_ on: PhoneEvent.Kind, _ off: PhoneEvent.Kind) {
@@ -127,22 +120,14 @@ public enum PhoneNightRule {
         }
         spans(.unlocked, .locked); spans(.appOpened, .appClosed)
         var moved = events.filter { $0.kind == .phoneMoved }.map(\.at)
-        if placement == .bedStand {
-            moved += epochs.compactMap { e in e.flatMap { ($0.motion ?? 0) > phoneMovedBar ? $0.start : nil } }
-        }
+        moved += epochs.compactMap { e in e.flatMap { ($0.motion ?? 0) > phoneMovedBar ? $0.start : nil } }
         useSpans += moved.map { ($0, $0.addingTimeInterval(epoch)) }
         for (a, b) in useSpans where b > start && a < end {
             for i in max(0, index(a) - 1)...min(count - 1, index(b.addingTimeInterval(-0.001)) + 1) where count > 0 { certain[i] = true }
         }
 
-        // Active: a sound event, or (mattress) motion above the night's 90th percentile, floored.
-        let counts = epochs.compactMap { $0?.motion }.sorted()
-        let p90 = counts.isEmpty ? 0 : counts[min(counts.count - 1, Int(Double(counts.count) * 0.9))]
-        let bar = max(minimumMovementBar, p90)
-        let active = epochs.map { e -> Bool in
-            guard let e else { return false }
-            return e.soundEvent || (placement == .mattress && (e.motion ?? 0) > bar)
-        }
+        // Active: a sound event in the room.
+        let active = epochs.map { $0?.soundEvent == true }
 
         func quiet(at i: Int) -> Bool {
             guard i + quietRun <= count else { return false }

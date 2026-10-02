@@ -3,8 +3,8 @@ import Testing
 @testable import SleepiCore
 
 private let bed = Date(timeIntervalSince1970: 1_780_354_800) // 23:00 UTC
-private func night(hours: Double = 8, placement: PhonePlacement = .bedStand, epochs build: (Int) -> PhoneEpoch?) -> PhoneNight {
-    var n = PhoneNight(start: bed, placement: placement)
+private func night(hours: Double = 8, epochs build: (Int) -> PhoneEpoch?) -> PhoneNight {
+    var n = PhoneNight(start: bed)
     n.end = bed.addingTimeInterval(hours * 3600)
     for i in 0..<Int(hours * 120) { if let e = build(i) { n.merge(e) } }
     return n
@@ -28,13 +28,17 @@ private func quietEpoch(_ i: Int) -> PhoneEpoch { PhoneEpoch(start: bed.addingTi
     #expect(e.wakeUps.contains { $0.kind == .phoneUse && $0.start <= bed.addingTimeInterval(3 * 3600) && $0.end >= bed.addingTimeInterval(3 * 3600 + 360) })
 }
 
-@Test func restlessPatchOnTheMattressIsAMaybeAwake() {
-    var n = night(placement: .mattress) { i in
-        var e = quietEpoch(i); if (240..<246).contains(i) { e.motion = 4 } // 01:00–01:03 tossing
+@Test func restlessSoundsAreAMaybeAwakeAndAPickedUpPhoneIsCertain() {
+    var n = night { i in
+        var e = quietEpoch(i)
+        if (240..<246).contains(i) { e.soundEvent = true }  // 01:00–01:03 rustling, coughing
+        if i == 600 { e.motion = 5 }                        // 04:00 phone picked up
         return e
     }
     n.recalculate()
-    #expect(n.estimate!.wakeUps.contains { $0.kind == .restless && $0.start <= bed.addingTimeInterval(7200) && $0.end > bed.addingTimeInterval(7200) })
+    let wakeUps = n.estimate!.wakeUps
+    #expect(wakeUps.contains { $0.kind == .restless && $0.start <= bed.addingTimeInterval(7200) && $0.end > bed.addingTimeInterval(7200) })
+    #expect(wakeUps.contains { $0.kind == .phoneUse && $0.start <= bed.addingTimeInterval(5 * 3600) && $0.end > bed.addingTimeInterval(5 * 3600) })
 }
 
 @Test func steadyFanSetsTheFloorInsteadOfCreatingSoundEvents() {
@@ -69,7 +73,7 @@ private func quietEpoch(_ i: Int) -> PhoneEpoch { PhoneEpoch(start: bed.addingTi
     var out: (start: Date, motion: Double, jerk: Double)?
     for k in 0...300 { if let r = acc.add(magnitude: k % 2 == 0 ? 1.0 : 1.2, at: bed.addingTimeInterval(Double(k) * 0.1)) { out = r } }
     #expect(out != nil); #expect(abs(out!.motion - 30) < 0.5)
-    var n = PhoneNight(start: bed, placement: .bedStand)
+    var n = PhoneNight(start: bed)
     n.merge(PhoneEpoch(start: bed.addingTimeInterval(31), motion: 1)); n.merge(PhoneEpoch(start: bed.addingTimeInterval(45), levelDB: -50))
     #expect(n.epochs.count == 1); #expect(n.epochs[0].motion == 1); #expect(n.epochs[0].levelDB == -50)
 }
