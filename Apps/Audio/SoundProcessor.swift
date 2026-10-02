@@ -133,6 +133,7 @@ public final class SoundProcessor: NSObject, SNResultsObserving, @unchecked Send
         do {
             try write(frames, to: url)
             try LocalRepository.protect(url)
+            try LocalRepository.setExcludedFromBackup(url, true) // unstarred clips expire; starring includes them
             let bytes = (try url.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0
             guard bytes > 0, bytes <= bytesRemaining else {
                 try FileManager.default.removeItem(at: url); fail("Clip budget reached. Sound recording stopped."); return

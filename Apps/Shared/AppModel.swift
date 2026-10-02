@@ -127,6 +127,9 @@ public enum SessionSyncEvent: Sendable {
                 }
                 onSessionChanged?(activeSession)
                 try await store.removeOrphanClips(keeping: Set(state.sounds.compactMap(\.fileName)))
+                migrateDefaultTags()
+                // Older builds excluded everything from backup; now only unstarred clips are.
+                for event in state.sounds { if let name = event.fileName { try? await store.setClipBackedUp(name, event.starred) } }
                 await pruneClips()
                 await persist()
                 if libraryFailed { libraryFailed = false; self.error = nil }
@@ -162,6 +165,7 @@ public enum SessionSyncEvent: Sendable {
             let result = try await health.fetch()
             lockedRetries = 0
             snapshot = result; nights = NightBuilder.build(samples: result.samples)
+            recomputeTagLinks()
             onSnapshot?(nights.last)
             healthStatus = nights.isEmpty ? "No readable Apple Watch sleep yet. Data may be unavailable or access may be off." : "From Apple Watch · refreshed \(result.fetchedAt.formatted(date: .omitted, time: .shortened))"
             if background, state.settings.morningNotifications, let night = nights.last,
@@ -243,7 +247,10 @@ public enum SessionSyncEvent: Sendable {
         onSessionChanged?(activeSession); await persist()
     }
     public func toggleStar(_ event: SoundEvent) async {
-        if let i = state.sounds.firstIndex(where: { $0.id == event.id }) { state.sounds[i].starred.toggle(); await persist() }
+        guard let i = state.sounds.firstIndex(where: { $0.id == event.id }) else { return }
+        state.sounds[i].starred.toggle()
+        if let name = state.sounds[i].fileName { try? await store?.setClipBackedUp(name, state.sounds[i].starred) }
+        await persist()
     }
     public func toggleNotMe(_ event: SoundEvent) async {
         if let i = state.sounds.firstIndex(where: { $0.id == event.id }) { state.sounds[i].notMe.toggle(); await persist() }
@@ -275,6 +282,110 @@ public enum SessionSyncEvent: Sendable {
     }
     public func saveJournal(_ journal: NightJournal) async {
         state.journals.removeAll { $0.nightID == journal.nightID }; state.journals.append(journal); await persist()
+        recomputeTagLinks()
+    }
+    public func journal(for night: SleepNight) -> NightJournal? { state.journals.last { $0.nightID == night.id } }
+    /// Morning card: a rating or a chip saves right away, so the card can be one or two taps or skipped.
+    public func setRating(_ rating: Int?, for night: SleepNight) async {
+        var entry = journal(for: night) ?? NightJournal(nightID: night.id)
+        entry.rating = rating.map { min(5, max(1, $0)) }
+        await saveJournal(entry)
+    }
+    public func toggleTag(_ tag: JournalTag, for night: SleepNight) async {
+        var entry = journal(for: night) ?? NightJournal(nightID: night.id)
+        if entry.tagIDs.contains(tag.id) { entry.tagIDs.remove(tag.id) } else { entry.tagIDs.insert(tag.id) }
+        await saveJournal(entry)
+    }
+
+    // MARK: Tags: rename keeps the id (and so the history); hide, reorder, merge.
+    public var visibleTags: [JournalTag] { state.tags.filter { $0.hidden != true } }
+    public func addTag(_ name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        state.tags.append(JournalTag(name: trimmed)); await persist()
+    }
+    public func setHidden(_ tag: JournalTag, _ hidden: Bool) async {
+        guard let i = state.tags.firstIndex(where: { $0.id == tag.id }) else { return }
+        state.tags[i].hidden = hidden ? true : nil; await persist()
+    }
+    public func moveTagUp(_ tag: JournalTag) async {
+        guard let i = state.tags.firstIndex(where: { $0.id == tag.id }), i > 0 else { return }
+        state.tags.swapAt(i, i - 1); await persist()
+    }
+    /// Every night tagged with `tag` becomes tagged with `target`, then `tag` is removed.
+    public func merge(_ tag: JournalTag, into target: JournalTag) async {
+        guard tag.id != target.id else { return }
+        for i in state.journals.indices where state.journals[i].tagIDs.contains(tag.id) {
+            state.journals[i].tagIDs.remove(tag.id); state.journals[i].tagIDs.insert(target.id)
+        }
+        state.tags.removeAll { $0.id == tag.id }; await persist(); recomputeTagLinks()
+    }
+    /// Libraries from before the sleep-diary chips still had the original six untouched defaults: rename them in
+    /// place (keeping any history) and add the new ones. Libraries whose tags were edited are left alone.
+    private func migrateDefaultTags() {
+        guard state.tagsVersion == nil else { return }
+        state.tagsVersion = 2
+        let old = ["Late caffeine", "Alcohol", "Late meal", "Movement", "Stress", "Reading"]
+        guard state.tags.map(\.name) == old else { return }
+        let renames = ["Late caffeine": "Caffeine after 2 pm", "Late meal": "Late meal (within 3 h of bed)", "Movement": "Hard exercise late", "Stress": "Stressed"]
+        for i in state.tags.indices {
+            if let name = renames[state.tags[i].name] { state.tags[i].name = name }
+            if state.tags[i].name == "Reading" { state.tags[i].hidden = true }
+        }
+        state.tags += ["Nap", "Unwell"].map(JournalTag.init)
+    }
+
+    // MARK: Linked results (refs/11 §1)
+    /// Recomputed each time notes are saved or Health refreshes, on device. Seeded from the data so the same nights
+    /// always give the same answer.
+    public private(set) var tagStatuses: [UUID: TagStatus] = [:]
+    public func sleepingHeartRate(for night: SleepNight) -> Double? {
+        let asleep = night.segments.filter(\.stage.isAsleep)
+        let values = snapshot.vitals.filter { reading in reading.kind == .heartRate && asleep.contains { $0.start <= reading.date && reading.date < $0.end } }.map(\.value)
+        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+    }
+    public func toFallAsleep(for night: SleepNight) -> TimeInterval? { inBed(for: night)?.toFallAsleep ?? markerToFirstSleep(for: night) }
+    public func recomputeTagLinks() {
+        let leftOut = leftOutNights
+        let calendar = Calendar.current
+        let rows: [TagNight] = nights.compactMap { night in
+            guard !leftOut.contains(night.id), let entry = journal(for: night) else { return nil } // unreviewed nights aren't a control group
+            var measures: [TagMeasure: Double] = [.totalSleep: night.asleepSeconds, .wakeUps: Double(night.interruptions.count)]
+            if let fall = toFallAsleep(for: night) { measures[.toFallAsleep] = fall }
+            if let heart = sleepingHeartRate(for: night) { measures[.sleepingHeartRate] = heart }
+            if let rating = entry.rating { measures[.rating] = Double(rating) }
+            let evening = calendar.component(.weekday, from: night.windowStart) // the night's evening: Fri (6), Sat (7) are weekend
+            return TagNight(weekend: evening == 6 || evening == 7, tags: entry.tagIDs, measures: measures)
+        }
+        let tags = state.tags.map(\.id), seed = UInt64(rows.count) &* 0x9E37 &+ UInt64(state.journals.count)
+        tagLinkGeneration += 1
+        let generation = tagLinkGeneration
+        // Thousands of shuffles per tag: off the main thread, and only the latest request is kept.
+        Task.detached(priority: .utility) {
+            var generator = SplitMix64(seed: seed)
+            let statuses = TagLinks.evaluate(nights: rows, tags: tags, generator: &generator)
+            await MainActor.run { [weak self] in
+                guard let self, self.tagLinkGeneration == generation else { return }
+                self.tagStatuses = statuses
+            }
+        }
+    }
+    private var tagLinkGeneration = 0
+
+    // MARK: Export (refs/11 §2): one row per night of sleepi's own data, shared through the share sheet.
+    public var exportCSV: String {
+        let names = Dictionary(uniqueKeysWithValues: state.tags.map { ($0.id, $0.name) })
+        let rows = nights.map { night -> NightExportRow in
+            let entry = journal(for: night)
+            var sounds: [SoundKind: Int] = [:]
+            for event in state.sounds where event.start >= night.windowStart && event.start < night.windowEnd { sounds[event.kind, default: 0] += 1 }
+            let log = (state.wakeLogs ?? []).last { $0.latest >= night.windowStart && $0.latest < night.windowEnd }
+            return NightExportRow(date: night.windowStart, appleTotalSleep: night.asleepSeconds, toFallAsleep: toFallAsleep(for: night),
+                                  wakeUps: night.interruptions.count, sleepingHeartRate: sleepingHeartRate(for: night), rating: entry?.rating,
+                                  tags: (entry?.tagIDs ?? []).compactMap { names[$0] }.sorted(), sounds: sounds,
+                                  gentleWakeUsed: log != nil, wakeDecision: log?.tappedAt)
+        }
+        return NightExportRow.csv(rows)
     }
     public func persist() async {
         guard !isDemo, canSave, let store else { return }

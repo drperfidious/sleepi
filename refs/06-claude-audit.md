@@ -86,6 +86,16 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 
 - **No highlights on night 1 (fan running):** every label needed classifier confidence ≥ 0.8. The built-in classifier spreads its confidence when a steady sound such as a fan is present, so masked snoring or speech rarely reached it. The bars are now per label (`SoundThresholds`: snoring and cough 0.5, speech 0.6, room sounds 0.7). Each label is judged against its own bar, even when the fan ranks above it. Each night also saves a listening summary (`SoundSessionStats`: time listened, median room level in dBFS, best confidence per label, near misses, highlights saved), shown in Sounds, so a quiet night can be told apart from a bar that's too high. The bars are starting points, to tune from these summaries.
 
+- **Feature review (`11-feature-review.md`) builds:**
+  1. **Morning sleep diary:** an optional card at the top of Last Night with the 5-point rating and evening chips, in the sleep-diary defaults. Old untouched defaults are migrated in place, keeping their ids.
+     - Chips can be renamed (history kept), hidden, moved and merged.
+     - `TagLinks` implements the rule: 8+ nights each way, weekday/weekend-stratified permutation, BH at 5%, minimum sizes, all computed off the main thread with a data-seeded RNG.
+     - One deliberate deviation: the BH family is the pairs actually tested. Untested pairs entered as p = 1 would make the bar depend on which measures happen to have data.
+     - `sim.py` cases A, D and E are ported as unit tests: A shows ≤10% false links, D ≤5% with matching, E ≤10%. In D the other tags are logged at 2 nights a week, as in real use.
+     - Heart rate was already a Health read.
+  2. **Export:** a CSV of sleepi's own per-night data from Settings, via the share sheet.
+  3. **Backup:** the whole library had been excluded from backup (an earlier deliberate choice). Now the library is backed up, and only unstarred clips are excluded; starring includes a clip.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |

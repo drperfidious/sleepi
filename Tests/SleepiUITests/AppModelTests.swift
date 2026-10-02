@@ -243,3 +243,30 @@ import SleepiCore
     audio.statsCallback?(heard) // the final summary arrives just after stopping
     #expect(model.state.sessions.last?.soundStats == heard)
 }
+
+@Test @MainActor func oldDefaultTagsMigrateKeepingHistoryAndMergeMovesNights() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    var legacy = LocalState()
+    legacy.tags = ["Late caffeine", "Alcohol", "Late meal", "Movement", "Stress", "Reading"].map(JournalTag.init)
+    var entry = NightJournal(nightID: .now); entry.tagIDs = [legacy.tags[0].id]; legacy.journals = [entry]
+    try await LocalRepository(directory: dir).save(legacy)
+    let model = AppModel(directory: dir); await model.load()
+    #expect(model.state.tags[0].id == legacy.tags[0].id); #expect(model.state.tags[0].name == "Caffeine after 2 pm")
+    #expect(model.visibleTags.contains { $0.name == "Unwell" }); #expect(!model.visibleTags.contains { $0.name == "Reading" })
+    await model.merge(model.state.tags[0], into: model.state.tags[1])
+    #expect(model.state.journals[0].tagIDs == [legacy.tags[1].id])
+}
+
+@Test @MainActor func libraryIsBackedUpAndOnlyUnstarredClipsAreLeftOut() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let model = AppModel(directory: dir); await model.load(); await model.persist()
+    let library = dir.appendingPathComponent("library.json")
+    #expect(try library.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == false)
+    let clip = dir.appendingPathComponent("Clips/test.m4a")
+    try Data([1]).write(to: clip); try LocalRepository.setExcludedFromBackup(clip, true)
+    model.state.sounds = [SoundEvent(start: .now, end: .now, kind: .snoring, confidence: 1, levelDBFS: -20, fileName: "test.m4a", byteCount: 1)]
+    await model.toggleStar(model.state.sounds[0])
+    #expect(try clip.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == false)
+}

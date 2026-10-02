@@ -168,6 +168,8 @@ public struct NightJournal: Codable, Identifiable, Sendable {
     public var tagIDs: Set<UUID> = []
     public var note: String = ""
     public var isFreeDay: Bool?
+    /// Morning rating, 1 (very poor) to 5 (very good), as in the Consensus Sleep Diary. Nil when skipped.
+    public var rating: Int?
     public var id: Date { nightID }
     public init(nightID: Date) { self.nightID = nightID }
 }
@@ -175,7 +177,11 @@ public struct NightJournal: Codable, Identifiable, Sendable {
 public struct JournalTag: Codable, Identifiable, Sendable {
     public var id: UUID = UUID()
     public var name: String
+    /// Hidden from the morning chips; its history is kept.
+    public var hidden: Bool?
     public init(name: String) { self.name = name }
+    public static let ratingTitles = ["Very poor", "Poor", "Fair", "Good", "Very good"]
+    public static let defaultNames = ["Caffeine after 2 pm", "Alcohol", "Late meal (within 3 h of bed)", "Hard exercise late", "Nap", "Stressed", "Unwell"]
 }
 
 public struct AppSettings: Codable, Sendable {
@@ -195,7 +201,9 @@ public struct LocalState: Codable, Sendable {
     public var sessions: [TonightSession] = []
     public var sounds: [SoundEvent] = []
     public var journals: [NightJournal] = []
-    public var tags: [JournalTag] = ["Late caffeine", "Alcohol", "Late meal", "Movement", "Stress", "Reading"].map(JournalTag.init)
+    public var tags: [JournalTag] = JournalTag.defaultNames.map(JournalTag.init)
+    /// 2 once the original default chips were updated to the sleep-diary set. Optional for older libraries.
+    public var tagsVersion: Int?
     public var lastNotifiedNight: Date?
     public var motionNights: [MotionRecording] = []
     public var wakeReviews: [WakeReview] = []

@@ -95,6 +95,7 @@ struct LastNightView: View {
                 }.accessibilityElement(children: .ignore).accessibilityLabel("\(DurationText.hoursMinutes(night.asleepSeconds)) asleep")
                 HStack(spacing: 6) { Circle().fill(SleepiTheme.mint).frame(width: 5, height: 5); Text("Asleep · estimated by Apple Watch").font(.system(size: 12)).foregroundStyle(SleepiTheme.muted) }
             }
+            MorningCard(model: model, night: night)
             Card {
                 HStack { Eyebrow(text: "The shape of your night"); Spacer(); Image(systemName: "applewatch").foregroundStyle(SleepiTheme.muted) }
                 NightChart(night: night)
@@ -238,6 +239,38 @@ struct RawNightView: View {
                 Text("An estimate from your in-bed marker; this is not measured sleep latency.").font(.caption).foregroundStyle(SleepiTheme.muted)
             }
             ForEach(night.segments) { s in DetailLine(title: "\(s.start.formatted(date: .omitted, time: .shortened)) · \(s.stage.title)", value: "\(Int(s.seconds / 60)) min") }
+        }
+    }
+}
+
+/// Optional morning sleep diary: a rating and chips for the evening before. Each tap saves; skipping is fine.
+struct MorningCard: View {
+    @Bindable var model: AppModel
+    let night: SleepNight
+    var body: some View {
+        let entry = model.journal(for: night)
+        Card {
+            Eyebrow(text: "How did you sleep?")
+            HStack(spacing: 6) {
+                ForEach(1...5, id: \.self) { value in
+                    Button { Task { await model.setRating(entry?.rating == value ? nil : value, for: night) } } label: {
+                        Text(JournalTag.ratingTitles[value - 1]).font(.system(size: 11)).multilineTextAlignment(.center).lineLimit(2)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .background(entry?.rating == value ? SleepiTheme.lavender.opacity(0.25) : SleepiTheme.card, in: RoundedRectangle(cornerRadius: 10))
+                    }.buttonStyle(.plain).accessibilityAddTraits(entry?.rating == value ? [.isSelected] : [])
+                }
+            }
+            Text("The evening before").font(.caption).foregroundStyle(SleepiTheme.muted)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(model.visibleTags) { tag in
+                    let on = entry?.tagIDs.contains(tag.id) == true
+                    Button { Task { await model.toggleTag(tag, for: night) } } label: {
+                        Text(tag.name).font(.caption).lineLimit(2).frame(maxWidth: .infinity, minHeight: 34)
+                            .background(on ? SleepiTheme.lavender.opacity(0.25) : SleepiTheme.card, in: RoundedRectangle(cornerRadius: 10))
+                    }.buttonStyle(.plain).accessibilityAddTraits(on ? [.isSelected] : [])
+                }
+            }
+            Text("Optional, and kept on this iPhone only, never in Health. Add or rename chips in Settings.").font(.system(size: 10)).foregroundStyle(SleepiTheme.muted)
         }
     }
 }

@@ -70,16 +70,22 @@ struct TrendsView: View {
                 else { Text("Tell us which days were free.").font(.title3); Text("Mark at least three free days and three scheduled days in your morning notes to compare mid-sleep timing. Weekends are not assumed to be free.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3) }
             }
             Card {
-                Eyebrow(text: "What goes with better nights?")
-                let comparisons = model.state.tags.compactMap { tag -> (JournalTag, TagComparison)? in
-                    guard let comparison = Insights.comparison(tagID: tag.id, nights: nights, journals: model.state.journals) else { return nil }; return (tag, comparison)
+                Eyebrow(text: "Linked to your nights")
+                ForEach(model.visibleTags) { tag in
+                    switch model.tagStatuses[tag.id] {
+                    case .linked(let links)?:
+                        ForEach(links, id: \.measure) { link in
+                            (Text("On nights after ") + Text(tag.name).italic() + Text(", \(link.measure.phrase(link.difference)) (\(link.taggedNights) nights vs \(link.untaggedNights)).")).font(.subheadline)
+                        }
+                    case .noClearLink(let count)?:
+                        DetailLine(title: tag.name, value: "No clear link so far (\(count) nights)")
+                    case .notEnough(let have)?:
+                        DetailLine(title: tag.name, value: "Not enough nights yet (\(have) of \(TagLinks.minimumNights))")
+                    case nil:
+                        DetailLine(title: tag.name, value: "Not enough nights yet (0 of \(TagLinks.minimumNights))")
+                    }
                 }
-                if comparisons.isEmpty { Text("Your notes will tell the story.").font(.title3); Text("Comparisons need 10 reviewed nights with a tag and 10 without it. Save a note even on nights with no tags. Associations don’t show cause and effect.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3) }
-                ForEach(comparisons, id: \.0.id) { tag, comparison in
-                    Text(tag.name).font(.headline)
-                    DetailLine(title: "With · \(comparison.withTagCount) nights", value: DurationText.hoursMinutes(comparison.withTagSeconds))
-                    DetailLine(title: "Without · \(comparison.withoutTagCount) nights", value: DurationText.hoursMinutes(comparison.withoutTagSeconds))
-                }
+                Text("One person’s sleep varies a lot from night to night, so links usually take two months or more. Weekdays are compared with weekdays and weekends with weekends. A link isn’t proof of cause.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3)
             }
         }
     }
@@ -110,7 +116,7 @@ struct JournalSheet: View {
         SheetFrame(title: "A note to your morning") {
             Text((night.lastSleep ?? night.windowEnd).formatted(date: .complete, time: .omitted)).font(.caption).foregroundStyle(SleepiTheme.muted)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(model.state.tags) { tag in
+                ForEach(model.state.tags.filter { $0.hidden != true || journal.tagIDs.contains($0.id) }) { tag in
                     Button { if journal.tagIDs.contains(tag.id) { journal.tagIDs.remove(tag.id) } else { journal.tagIDs.insert(tag.id) } } label: {
                         HStack { Text(tag.name); Spacer(); if journal.tagIDs.contains(tag.id) { Image(systemName: "checkmark") } }.font(.caption).padding(14).background(journal.tagIDs.contains(tag.id) ? SleepiTheme.lavender.opacity(0.2) : SleepiTheme.card, in: RoundedRectangle(cornerRadius: 12))
                     }.buttonStyle(.plain).accessibilityAddTraits(journal.tagIDs.contains(tag.id) ? [.isSelected] : [])
@@ -143,8 +149,21 @@ struct SettingsView: View {
             }
             Card {
                 Eyebrow(text: "Your words")
-                ForEach($model.state.tags) { $tag in TextField("Tag name", text: $tag.name).textFieldStyle(.roundedBorder).onSubmit { Task { await model.persist() } } }
-                HStack { TextField("New tag", text: $newTag).textFieldStyle(.roundedBorder); Button("Add") { let value = newTag.trimmingCharacters(in: .whitespacesAndNewlines); if !value.isEmpty { model.state.tags.append(JournalTag(name: value)); newTag = ""; Task { await model.persist() } } } }
+                ForEach($model.state.tags) { $tag in
+                    HStack {
+                        TextField("Tag name", text: $tag.name).textFieldStyle(.roundedBorder).onSubmit { Task { await model.persist() } }
+                            .foregroundStyle(tag.hidden == true ? SleepiTheme.muted : SleepiTheme.ink)
+                        Menu {
+                            Button(tag.hidden == true ? "Show in the morning" : "Hide (keeps history)") { Task { await model.setHidden(tag, tag.hidden != true) } }
+                            Button("Move up") { Task { await model.moveTagUp(tag) } }
+                            Menu("Merge into") {
+                                ForEach(model.state.tags.filter { $0.id != tag.id }) { other in Button(other.name) { Task { await model.merge(tag, into: other) } } }
+                            }
+                        } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Options for \(tag.name)")
+                    }
+                }
+                HStack { TextField("Your own tag", text: $newTag).textFieldStyle(.roundedBorder); Button("Add") { let value = newTag; newTag = ""; Task { await model.addTag(value) } } }
+                Text("Renaming keeps a tag’s history; merging moves every night onto the other tag.").font(.caption).foregroundStyle(SleepiTheme.muted)
             }
             Card {
                 Eyebrow(text: "Private by design")
@@ -152,8 +171,10 @@ struct SettingsView: View {
                 DetailLine(title: "Cloud sync", value: "Off · local only")
                 DetailLine(title: "Clip retention", value: "14 days")
                 DetailLine(title: "Clip storage", value: "\(Double(model.usedBytes) / 1_000_000, default: "%.1f") / 300 MB")
-                Text("Old clips are removed when sleepi next opens or starts recording. Saved clips count toward the cap; recording stops when they fill it. Notes and audio are excluded from backups.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3)
+                Text("Old clips are removed when sleepi next opens or starts recording. Saved clips count toward the cap; recording stops when they fill it. Notes, tags and settings are included in your iPhone or iCloud backup so they survive a new phone; only clips you haven’t starred are left out.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(3)
                 Button("Review Apple Health access") { Task { await model.connect() } }.disabled(model.isDemo)
+                ShareLink(item: model.exportCSV, preview: SharePreview("sleepi nights (CSV)")) { Label("Export sleepi’s data", systemImage: "square.and.arrow.up") }.disabled(model.isDemo)
+                Text("One row per night of sleepi’s own data: ratings, tags, time to fall asleep, wake-ups, sleeping heart rate, sound counts and gentle-wake decisions. No audio. Apple’s own data is in the Health app’s export.").font(.caption).foregroundStyle(SleepiTheme.muted)
             }
             Card {
                 Eyebrow(text: "A shortcut to tonight")

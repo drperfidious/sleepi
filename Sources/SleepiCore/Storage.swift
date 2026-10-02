@@ -57,6 +57,17 @@ public actor LocalRepository {
         #endif
         try Self.protect(url)
     }
+    public static func setExcludedFromBackup(_ url: URL, _ excluded: Bool) throws {
+        var mutable = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = excluded
+        try mutable.setResourceValues(values)
+    }
+    /// Starred clips are kept and backed up; others are excluded.
+    public func setClipBackedUp(_ name: String, _ backedUp: Bool) throws {
+        let url = try clipURL(name)
+        if FileManager.default.fileExists(atPath: url.path) { try Self.setExcludedFromBackup(url, !backedUp) }
+    }
     public func clipURL(_ name: String) throws -> URL {
         guard name == URL(fileURLWithPath: name).lastPathComponent, !name.hasPrefix("."), !name.contains("/"), name.hasSuffix(".m4a") else { throw StoreError.unsafeFileName }
         return directory.appendingPathComponent("Clips").appendingPathComponent(name)
@@ -76,11 +87,10 @@ public actor LocalRepository {
         try save(LocalState())
         try removeOrphanClips(keeping: [])
     }
+    /// Sets file protection. The library is included in iPhone/iCloud backups so notes and months of tags survive a
+    /// phone change; only unstarred clips are excluded (`setExcludedFromBackup`), since they expire in 14 days anyway.
     public static func protect(_ url: URL) throws {
-        var mutable = url
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try mutable.setResourceValues(values)
+        try setExcludedFromBackup(url, false)
         #if os(iOS) || os(watchOS)
         // New files must be writable while locked during explicit overnight recording.
         try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
