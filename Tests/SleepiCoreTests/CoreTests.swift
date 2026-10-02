@@ -249,3 +249,14 @@ private func versioned(_ a: Double, _ b: Double, _ os: String) -> SleepSample {
     #expect(SoundThresholds.confidence(for: .snoring) < 0.8) // 0.8 for everything missed masked snoring
     #expect(SoundThresholds.nearMiss(for: .snoring) < SoundThresholds.confidence(for: .snoring))
 }
+
+@Test func onlyUnstarredClipsAreLeftOutOfBackups() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let repo = try LocalRepository(directory: dir)
+    let clip = dir.appendingPathComponent("Clips/test.m4a")
+    try Data([1]).write(to: clip); try LocalRepository.setExcludedFromBackup(clip, true)
+    try await repo.setClipBackedUp("test.m4a", true) // starred
+    var fresh = URL(fileURLWithPath: clip.path); fresh.removeAllCachedResourceValues()
+    #expect(try fresh.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == false)
+}

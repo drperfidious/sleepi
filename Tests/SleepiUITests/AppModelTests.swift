@@ -258,15 +258,10 @@ import SleepiCore
     #expect(model.state.journals[0].tagIDs == [legacy.tags[1].id])
 }
 
-@Test @MainActor func libraryIsBackedUpAndOnlyUnstarredClipsAreLeftOut() async throws {
+@Test @MainActor func libraryIsIncludedInBackups() async throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: dir) }
     let model = AppModel(directory: dir); await model.load(); await model.persist()
     let library = dir.appendingPathComponent("library.json")
     #expect(try library.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == false)
-    let clip = dir.appendingPathComponent("Clips/test.m4a")
-    try Data([1]).write(to: clip); try LocalRepository.setExcludedFromBackup(clip, true)
-    model.state.sounds = [SoundEvent(start: .now, end: .now, kind: .snoring, confidence: 1, levelDBFS: -20, fileName: "test.m4a", byteCount: 1)]
-    await model.toggleStar(model.state.sounds[0])
-    #expect(try clip.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == false)
 }
