@@ -39,6 +39,8 @@ struct TonightView: View {
 struct StartSheet: View {
     @Bindable var model: AppModel
     @State private var sound = false
+    @State private var gentle = false
+    @State private var wake = Date.now
     var body: some View {
         SheetFrame(title: "Make room for rest") {
             Text("Save an in-bed marker. Apple Watch continues its own sleep tracking.").foregroundStyle(SleepiTheme.muted)
@@ -46,11 +48,21 @@ struct StartSheet: View {
                 Toggle(isOn: $sound) { Label("Record sound highlights", systemImage: "waveform") }.disabled(!model.audioAvailable)
                 Text(model.isDemo ? "Sound recording is available in the iPhone app. This preview doesn’t use your microphone." : "Your microphone listens on this iPhone. Short clips may include people nearby. They stay on this device and are removed after 14 days at the next cleanup, unless saved. Sounds from other apps keep playing, and sleepi may hear them.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
             }
-            Card {
-                Label("Gentle wake · on Apple Watch", systemImage: "applewatch").font(.subheadline)
-                Text("An experiment you switch on when you start the night on your Watch: a wrist tap, no sound, in the 25 minutes before the time you pick. Keep Apple’s alarm set; it stays the real alarm.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+            if model.watchAvailable && !model.isDemo {
+                Card {
+                    Toggle(isOn: $gentle) { Label("Gentle wake on Apple Watch", systemImage: "applewatch") }
+                        .onAppear { wake = model.suggestedGentleWake ?? Calendar.current.nextDate(after: .now, matching: DateComponents(hour: 7), matchingPolicy: .nextTime) ?? .now }
+                    if gentle {
+                        DatePicker("Wake by", selection: $wake, displayedComponents: .hourAndMinute)
+                        Text("\(model.gentleWake.windowMinutes)-min window · \(model.gentleWake.sensitivity.title) (change in Settings). Then open sleepi on your Watch and tap Set gentle wake: Apple only lets the Watch app itself schedule its wake-up. Your Clock alarm stays the real alarm.").font(.caption).foregroundStyle(SleepiTheme.muted).lineSpacing(4)
+                    }
+                }
             }
-            PrimaryButton(title: model.isStarting ? "Starting…" : sound ? "Start with microphone" : "Save my in-bed time", symbol: sound ? "mic" : "moon") { Task { await model.startTonight(sound: sound) } }.disabled(model.isStarting)
+            PrimaryButton(title: model.isStarting ? "Starting…" : sound ? "Start with microphone" : "Save my in-bed time", symbol: sound ? "mic" : "moon") {
+                let components = Calendar.current.dateComponents([.hour, .minute], from: wake)
+                let wakeAt = gentle ? Calendar.current.nextDate(after: .now, matching: components, matchingPolicy: .nextTime) : nil
+                Task { await model.startTonight(sound: sound, gentleWake: wakeAt) }
+            }.disabled(model.isStarting)
         }
     }
 }

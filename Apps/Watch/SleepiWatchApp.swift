@@ -30,6 +30,9 @@ struct WatchHome: View {
                 if let start = pilot.start {
                     Text(start, style: .timer).font(.system(size: 36, weight: .light, design: .rounded)).monospacedDigit()
                     Text("Since your in-bed marker").font(.caption2).foregroundStyle(.secondary)
+                    if let wake = pilot.pendingGentleWake, !pilot.alerting {
+                        Button("Set gentle wake · \(wake.formatted(date: .omitted, time: .shortened))") { pilot.armPendingGentleWake() }.tint(.purple)
+                    }
                     if pilot.alerting {
                         Button("Wake Up") { pilot.wakeUp() }.tint(.purple)
                         if pilot.canSnooze { Button("Snooze 10 min") { pilot.snooze() } }

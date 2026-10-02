@@ -81,6 +81,9 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
 
 - **Wake Up / Snooze, complication state, Watch setup layout (after Randy's awake test):** Dismiss only ended the night on the Watch, because the iPhone got the end through a queued transfer that waits until iOS wakes sleepi. Now Wake Up, or Stop on the system alarm screen, ends the night on both, and Watch markers also go as live messages when the iPhone is reachable. Snooze (`SnoozePlan`) pauses the taps for 10 minutes by rescheduling the smart-alarm session without moving the wake time. With under 10 minutes left the next taps come at the wake time; after it there's no snooze and Apple's alarm takes over. The iPhone's application context now carries the running night, and the Watch syncs from it before choosing a screen, so a complication opens on the timer when the iPhone already started a night. The setup sheet is now a compact Form: a window Stepper, a navigation-link Movement picker that shows its title and value, and one short caption.
 
+- **Locked-phone Health alert:** unlocking the iPhone triggered a scene-activation refresh before Health was readable. HealthKit's `errorDatabaseInaccessible` ("Protected health data is inaccessible") went to the generic alert and blanked the nights. It now maps to `HealthLocked`, which shows no alert, keeps the nights on screen and retries up to 3 times, 3 s apart (regression test).
+- **Gentle wake from iPhone:** with a paired Watch that has sleepi installed, the iPhone Start sheet offers Gentle wake and a wake time. The time travels with the night (`gentleWakeRequested`). Because only the foreground Watch app can call `WKExtendedRuntimeSession.start(at:)`, the Watch shows a one-tap "Set gentle wake" button, using the window and movement setting from Settings.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |

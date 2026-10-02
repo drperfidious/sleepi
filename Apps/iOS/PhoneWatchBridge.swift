@@ -21,7 +21,11 @@ import SleepiUI
         if let settings = model.state.settings.gentleWake, let data = try? JSONEncoder().encode(settings) { value["gentleWake"] = data }
         // The night running on iPhone right now (or none), so the Watch opens on it instead of the setup screen.
         value["nightState"] = 1
-        if let night = model.activeSession { value["activeNight"] = ["id": night.id.uuidString, "start": night.start.timeIntervalSince1970] }
+        if let night = model.activeSession {
+            var active: [String: Any] = ["id": night.id.uuidString, "start": night.start.timeIntervalSince1970]
+            if let wake = night.gentleWakeRequested { active["gentleLatest"] = wake.timeIntervalSince1970 }
+            value["activeNight"] = active
+        }
         try? WCSession.default.updateApplicationContext(value)
     }
     /// Queued, guaranteed delivery: a night started or ended here starts or ends it on the Watch, even if the Watch
@@ -33,6 +37,7 @@ import SleepiUI
         switch event {
         case .started(let night):
             info["action"] = "phoneStart"; info["id"] = night.id.uuidString; info["start"] = night.start.timeIntervalSince1970
+            if let wake = night.gentleWakeRequested { info["gentleLatest"] = wake.timeIntervalSince1970 }
         case .ended(let night):
             info["action"] = "phoneEnd"; info["id"] = night.id.uuidString
             if let watchID = night.watchID { info["watchID"] = watchID.uuidString }
@@ -40,7 +45,12 @@ import SleepiUI
         WCSession.default.transferUserInfo(info)
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
-        Task { @MainActor in self.sendContext() }
+        let available = session.isPaired && session.isWatchAppInstalled
+        Task { @MainActor in self.model?.watchAvailable = available; self.sendContext() }
+    }
+    nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
+        let available = session.isPaired && session.isWatchAppInstalled
+        Task { @MainActor in self.model?.watchAvailable = available }
     }
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) { session.activate() }

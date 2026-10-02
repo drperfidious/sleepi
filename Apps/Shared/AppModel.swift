@@ -2,6 +2,10 @@ import Foundation
 import Observation
 import SleepiCore
 
+/// Health refuses reads while the iPhone is locked, and for a moment after unlocking ("Protected health data is
+/// inaccessible"). It's temporary: keep what's on screen and try again shortly.
+public struct HealthLocked: Error, Sendable { public init() {} }
+
 @MainActor public protocol HealthReading: AnyObject {
     func requestAccess() async throws
     func fetch() async throws -> HealthSnapshot
@@ -42,6 +46,10 @@ public enum SessionSyncEvent: Sendable {
     public var onSessionChanged: (@MainActor (TonightSession?) -> Void)?
     public var onSessionSync: (@MainActor (SessionSyncEvent) -> Void)?
     public var onGentleWakeChanged: (@MainActor () -> Void)?
+    /// A paired Apple Watch with sleepi installed, so gentle wake can be offered on iPhone too.
+    public var watchAvailable = false
+    /// The wake time to pre-fill on iPhone: your usual Apple Watch wake-up for tomorrow, when known.
+    public var suggestedGentleWake: Date? { GentleWakePolicy.suggestion(now: .now, picked: [:], usual: usualWake)?.date }
     public var onMorning: (@MainActor (SleepNight) async -> Bool)?
     public var requestNotifications: (@MainActor () async -> Bool)?
     public var onSnapshot: (@MainActor (SleepNight?) -> Void)?
@@ -53,6 +61,7 @@ public enum SessionSyncEvent: Sendable {
     private var loaded = false
     private var captureGeneration: UUID?
     private var libraryFailed = false
+    private var lockedRetries = 0
 
     public init(demo: Bool = false, health: (any HealthReading)? = nil, audio: (any AudioCapturing)? = nil, directory: URL? = nil) {
         isDemo = demo; self.health = health; self.audio = audio
@@ -150,6 +159,7 @@ public enum SessionSyncEvent: Sendable {
         isLoading = true; defer { isLoading = false }
         do {
             let result = try await health.fetch()
+            lockedRetries = 0
             snapshot = result; nights = NightBuilder.build(samples: result.samples)
             onSnapshot?(nights.last)
             healthStatus = nights.isEmpty ? "No readable Apple Watch sleep yet. Data may be unavailable or access may be off." : "From Apple Watch · refreshed \(result.fetchedAt.formatted(date: .omitted, time: .shortened))"
@@ -158,6 +168,15 @@ public enum SessionSyncEvent: Sendable {
                state.lastNotifiedNight != night.id, await onMorning?(night) == true {
                 state.lastNotifiedNight = night.id; await persist()
             }
+        } catch is HealthLocked {
+            // Scene activation can run before the unlock makes Health readable. Not the user's problem: no alert,
+            // keep the current nights, and retry a few times while in the foreground.
+            healthStatus = "Waiting for Health to become readable after unlock."
+            if !background, lockedRetries < 3 {
+                lockedRetries += 1
+                Task { [weak self] in try? await Task.sleep(for: .seconds(3)); await self?.refresh() }
+            }
+            return
         } catch {
             snapshot = HealthSnapshot(samples: []); nights = [] // Do not masquerade stale data as fresh permission.
             onSnapshot?(nil)
@@ -165,7 +184,7 @@ public enum SessionSyncEvent: Sendable {
             if !background { self.error = error.localizedDescription }
         }
     }
-    public func startTonight(sound: Bool) async {
+    public func startTonight(sound: Bool, gentleWake: Date? = nil) async {
         guard activeSession == nil, !isStarting, !isStopping else { return }
         guard isDemo || canSave else { error = "Resolve the local storage issue before starting a night."; return }
         isStarting = true; defer { isStarting = false }
@@ -173,6 +192,7 @@ public enum SessionSyncEvent: Sendable {
         if sound { guard await beginCapture() else { return } }
         var session = TonightSession(requestedAudio: sound, status: sound ? "Sound recording requested" : "In-bed marker only")
         session.origin = .phone
+        if let gentleWake, watchAvailable, gentleWake > Date.now.addingTimeInterval(5 * 60) { session.gentleWakeRequested = gentleWake }
         state.sessions.append(session); await persist()
         if !canSave && !isDemo { await audio?.stop(); state.sessions.removeAll { $0.id == session.id }; return }
         onSessionChanged?(session); onSessionSync?(.started(session)); showStartSheet = false

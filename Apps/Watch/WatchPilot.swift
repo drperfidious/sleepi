@@ -13,6 +13,8 @@ import SleepiCore
     @Published var status = "Apple’s sleep tracking stays in charge."
     @Published var alerting = false
     @Published var exporting = false
+    /// Set from iPhone and waiting for a tap here, because only the foreground Watch app can arm the wake session.
+    @Published private(set) var pendingGentleWake: Date?
     /// Window and sensitivity, kept in sync with the iPhone (the newer edit wins).
     @Published private(set) var wakeSettings = GentleWakeSettings()
     private var detector: WakeWindowDetector?
@@ -40,6 +42,7 @@ import SleepiCore
             try LocalRepository.protect(directory)
             if FileManager.default.fileExists(atPath: recordURL.path) { state = try JSONDecoder().decode(PilotState.self, from: Data(contentsOf: recordURL)) }
             start = state.markerStart
+            pendingGentleWake = state.pendingGentle.flatMap { $0 > .now ? $0 : nil }
         } catch { status = "Watch storage unavailable. \(error.localizedDescription)" }
         loadWakeTimes()
         if let data = UserDefaults.standard.data(forKey: "gentleWakeSettings"), let saved = try? JSONDecoder().decode(GentleWakeSettings.self, from: data) { wakeSettings = saved }
@@ -121,6 +124,7 @@ import SleepiCore
         alerting = false; let end = Date.now
         if notifyPhone { sendMarker(end: end) }
         if start != nil { state.lastEndedID = state.id }
+        state.pendingGentle = nil; pendingGentleWake = nil
         state.markerStart = nil; state.latest = nil; state.atWakeTimeOnly = nil; state.recordEnd = end; start = nil
         _ = save()
         status = orphanedWake ? "Night ended. If the gentle wake still taps, press Stop. Apple’s alarm is unchanged." : "Night ended. Apple’s alarm is unchanged."
@@ -273,17 +277,18 @@ import SleepiCore
         guard WCSession.default.activationState == .activated else { return }
         applyPhoneNight(Self.phoneNight(WCSession.default.receivedApplicationContext))
     }
-    private struct PhoneNight: Sendable { var known: Bool; var id: UUID?; var start: Date? }
+    private struct PhoneNight: Sendable { var known: Bool; var id: UUID?; var start: Date?; var gentleLatest: Date? }
     nonisolated private static func phoneNight(_ value: [String: Any]) -> PhoneNight {
         guard value["schema"] as? Int == 1, value["nightState"] as? Int == 1 else { return PhoneNight(known: false) }
         let night = value["activeNight"] as? [String: Any]
         return PhoneNight(known: true, id: (night?["id"] as? String).flatMap(UUID.init(uuidString:)),
-                          start: (night?["start"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil })
+                          start: (night?["start"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil },
+                          gentleLatest: (night?["gentleLatest"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil })
     }
     private func applyPhoneNight(_ night: PhoneNight) {
         guard night.known else { return }
         if let id = night.id, let begun = night.start {
-            if start == nil, id != state.lastEndedID { applyPhoneStart(id: id, start: begun) }
+            if start == nil, id != state.lastEndedID { applyPhoneStart(id: id, start: begun, gentleLatest: night.gentleLatest) }
         } else if start != nil, state.startedOnPhone == true {
             end(notifyPhone: false); status = "Night ended on iPhone. Apple’s alarm is unchanged."
         }
@@ -314,16 +319,35 @@ import SleepiCore
               let id = (userInfo["id"] as? String).flatMap(UUID.init(uuidString:)) else { return }
         let watchID = (userInfo["watchID"] as? String).flatMap(UUID.init(uuidString:))
         let start = (userInfo["start"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
+        let gentle = (userInfo["gentleLatest"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
         Task { @MainActor in
-            if action == "phoneStart", let start { self.applyPhoneStart(id: id, start: start) }
+            if action == "phoneStart", let start { self.applyPhoneStart(id: id, start: start, gentleLatest: gentle) }
             if action == "phoneEnd" { self.applyPhoneEnd([id, watchID].compactMap { $0 }) }
         }
     }
-    private func applyPhoneStart(id: UUID, start: Date) {
+    private func applyPhoneStart(id: UUID, start: Date, gentleLatest: Date? = nil) {
         guard self.start == nil, start > Date.now.addingTimeInterval(-18 * 3600), start <= Date.now.addingTimeInterval(60) else { return }
-        state = PilotState(id: id, markerStart: start, startedOnPhone: true)
+        let pending = gentleLatest.flatMap { $0 > Date.now.addingTimeInterval(2 * 60) ? $0 : nil }
+        state = PilotState(id: id, markerStart: start, startedOnPhone: true, pendingGentle: pending)
         guard save() else { return }
-        self.start = start; status = "Started on iPhone. Ending it here ends it there too."
+        self.start = start; pendingGentleWake = pending
+        status = pending == nil ? "Started on iPhone. Ending it here ends it there too." : "Started on iPhone. Tap Set gentle wake to arm it."
+    }
+    /// One tap on this Watch arms a gentle wake chosen on iPhone, with the window and movement setting from Settings.
+    @discardableResult func armPendingGentleWake() -> Bool {
+        guard let latest = pendingGentleWake, start != nil, runtime == nil,
+              WKApplication.shared().applicationState == .active else { return false }
+        guard let scheduled = GentleWakePolicy.start(latest: latest, now: .now, windowMinutes: wakeSettings.windowMinutes) else {
+            pendingGentleWake = nil; state.pendingGentle = nil; _ = save()
+            status = "That wake time has passed. Rely on your Clock alarm."; return false
+        }
+        state.latest = latest; state.sensitivity = wakeSettings.sensitivity; state.pendingGentle = nil; state.atWakeTimeOnly = nil
+        guard save() else { return false }
+        pendingGentleWake = nil
+        let session = WKExtendedRuntimeSession(); session.delegate = self; runtime = session
+        session.start(at: scheduled)
+        status = "Gentle wake set for \(latest.formatted(date: .omitted, time: .shortened)). Keep Apple’s alarm set."
+        return true
     }
     private func applyPhoneEnd(_ ids: [UUID]) {
         guard start != nil, ids.contains(state.id) else { return }
@@ -347,6 +371,8 @@ private struct PilotState: Codable {
     var atWakeTimeOnly: Bool?
     /// The night ended here last, so a stale iPhone state can't bring it back.
     var lastEndedID: UUID?
+    /// A gentle-wake time chosen on iPhone, waiting for one tap here to schedule it.
+    var pendingGentle: Date?
 }
 
 /// CMSensorDataList only adopts NSFastEnumeration, which Swift's for-in can't use directly.

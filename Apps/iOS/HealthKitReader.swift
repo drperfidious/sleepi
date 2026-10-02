@@ -105,7 +105,10 @@ import SleepiUI
         try await withCheckedThrowingContinuation { continuation in
             let box = QueryCompletion(continuation)
             let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, values, error in
-                if let error { box.finish(.failure(error)) } else { box.finish(.success(map(values ?? []))) }
+                if let error {
+                    let locked = (error as? HKError)?.code == .errorDatabaseInaccessible
+                    box.finish(.failure(locked ? HealthLocked() : error))
+                } else { box.finish(.success(map(values ?? []))) }
             }
             store.execute(query)
             let healthStore = store

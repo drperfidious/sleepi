@@ -6,8 +6,9 @@ import SleepiCore
 @MainActor private final class FakeHealth: HealthReading {
     var requested = false
     var next = HealthSnapshot(samples: [])
+    var locked = false
     func requestAccess() async throws { requested = true }
-    func fetch() async throws -> HealthSnapshot { next }
+    func fetch() async throws -> HealthSnapshot { if locked { throw HealthLocked() }; return next }
     func observe(_ update: @escaping @MainActor @Sendable () async -> Void) {}
 }
 @MainActor private final class FakeAudio: AudioCapturing {
@@ -203,4 +204,30 @@ import SleepiCore
     #expect(model.trendNights.isEmpty)
     await model.setIncludedAnyway(stopped, true)
     #expect(model.trendNights.count == 1)
+}
+
+@Test @MainActor func lockedHealthAfterUnlockKeepsNightsAndShowsNoAlert() async throws {
+    // Regression: unlocking the iPhone refreshed before Health was readable and popped "Protected health data is inaccessible".
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let health = FakeHealth(); health.next = DemoData.snapshot()
+    let model = AppModel(health: health, directory: dir); await model.load(); await model.connect()
+    let count = model.nights.count
+    health.locked = true; await model.refresh()
+    #expect(model.error == nil); #expect(model.nights.count == count)
+}
+
+@Test @MainActor func gentleWakeChosenOnIPhoneTravelsWithTheNightOnlyWhenAWatchIsThere() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let model = AppModel(directory: dir); await model.load()
+    let log = SyncLog(); model.onSessionSync = { log.events.append($0) }
+    let wake = Date.now.addingTimeInterval(8 * 3600)
+    await model.startTonight(sound: false, gentleWake: wake)
+    #expect(model.activeSession?.gentleWakeRequested == nil) // no Watch paired
+    await model.stopTonight()
+    model.watchAvailable = true
+    await model.startTonight(sound: false, gentleWake: wake)
+    guard case .started(let night)? = log.events.last else { Issue.record("Watch not told"); return }
+    #expect(night.gentleWakeRequested == wake)
 }
