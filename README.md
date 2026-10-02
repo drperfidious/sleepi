@@ -1,44 +1,30 @@
 # sleepi
 
-A calm iPhone and Apple Watch sleep companion. Apple supplies the estimated sleep stages. sleepi adds local notes, understandable trends and optional sound highlights, without writing to Health or replacing Clock alarms.
+A calm sleep app for iPhone and Apple Watch. sleepi works with Apple Health and the Watch's own sleep tracking instead of replacing them: Apple keeps measuring your sleep stages, your Clock alarm and Sleep Focus stay as they are, and sleepi adds what Apple doesn't.
 
-**Status:** initial native implementation and runnable Mac UI preview. All four targets compile with Xcode 27.2 beta (simulator and unsigned device builds, see the audit); signed installation and every overnight trial remain unverified. Watch motion and gentle wake default off.
+**Free forever. No ads, no subscription, no account, no server.** Nothing leaves your phone except an export you choose to share. sleepi never writes to Health and never starts a workout on the Watch.
 
-## Start here
+## What it does
 
-- [Claude audit](refs/06-claude-audit.md): findings, fixes and build evidence from the 2026-10-01 audit.
-- [Fable handoff](docs/HANDOFF.md): evidence, limitations and review priorities.
-- [Validated findings](refs/05-validation-and-decisions.md): confirmed, qualified and falsified reference claims.
-- [Revised plan](docs/PLAN.md): implementation boundaries and device gates.
-- Original product/research material is preserved in `refs/01`–`04` and `refs/architecture.png`.
+- **Last Night and Trends** from Apple Watch sleep: stages, wake-ups, in-bed estimates from your Tonight start and end, schedule consistency, a shortfall against your own target, and a "vs Apple" line that names every night sleepi counted differently (overlapping records merged, nights the Watch stopped recording left out).
+- **Sound highlights** from the iPhone's microphone, classified on the device by Apple's built-in sound classifier (snoring, talking, coughing, room sounds). Short clips only, deleted after 14 days unless starred.
+- **Phone-only nights** without a Watch: the iPhone listens for sound levels and notices phone use to estimate when you fell asleep, when you woke for good and when you were up. Estimates are labelled as estimates; phones can't tell sleep stages.
+- **Gentle wake** on Apple Watch: a silent wrist tap in a window before your chosen time once you've been restless for about a minute, with Snooze and Wake Up. Your Clock alarm stays the real alarm.
+- **Morning sleep diary**: a 1–5 rating and tags for the evening before, with "linked" results that only appear when a weekday/weekend-matched permutation test with multiple-comparison control holds up.
+- **Export** of sleepi's own per-night data as CSV.
 
-## Run the preview and checks
+## Build
 
-```sh
-./scripts/test.sh
-DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer ./scripts/build.sh  # all four native targets, unsigned
-./scripts/preview.sh
-```
-
-The Mac preview uses clearly labeled synthetic data. It never reads your Health records or microphone and never saves its demo state. It exercises the same SwiftUI screens and shared model used by the iPhone app.
-
-## Build for iPhone and Watch
-
-Open `Sleepi.xcodeproj` in Xcode 26 or newer with the iOS/watchOS SDKs installed. Choose a signing team for each target. Replace the `app.sleepi.ios` bundle-ID family in `project.yml` if necessary for your account, regenerate, and enable the corresponding HealthKit capability. Select **Sleepi** for iPhone or **SleepiWatch** for Watch. Deployment minimums are iOS 26 and watchOS 26 (Series 8).
+Open `Sleepi.xcodeproj` in Xcode 26 or newer (iOS 26 and watchOS 26 minimums). Set your own signing team in `project.yml` (`DEVELOPMENT_TEAM`), run `scripts/generate_project.sh` (XcodeGen), and enable HealthKit for your App ID. Run the **Sleepi** scheme on an iPhone and the **SleepiWatch** scheme on an Apple Watch.
 
 ```sh
-xcodebuild -project Sleepi.xcodeproj -scheme Sleepi \
-  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
-xcodebuild -project Sleepi.xcodeproj -scheme SleepiWatch \
-  -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build
+./scripts/test.sh                                                     # unit tests and architecture checks
+DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer ./scripts/build.sh  # all native targets, unsigned
+./scripts/preview.sh                                                  # Mac preview with synthetic data
 ```
 
-The project is generated from `project.yml` with XcodeGen 2.46.0. It is included so XcodeGen isn't required merely to open/build it. After changing the spec, run `scripts/generate_project.sh`. The generator is a development tool, not an app dependency.
+No third-party runtime dependencies. Design notes and the research behind each feature are in `docs/` and `refs/` (start with `refs/06-claude-audit.md`).
 
-Watch gentle wake and motion recording are per-night experiments: switches in the Watch start sheet that are off every time it opens. Never disable Apple's tracking or alarm to accommodate sleepi.
+## License
 
-## Layout
-
-`Sources/SleepiCore` contains deterministic models, algorithms and storage. `Apps/Shared` holds SwiftUI and the observable application model. `Apps/Audio` holds the queue-confined SoundAnalysis/AAC pipeline. `Apps/iOS` and `Apps/Watch` provide platform adapters. Widget/control targets and shared intents are separate. `Tests` exercises algorithms and lifecycle boundaries.
-
-There are no accounts, subscriptions, analytics, ad SDKs, servers, Health write permissions, workout sessions, or CloudKit containers. Personal sleep notes and clips live only on-device and are excluded from backups. See the handoff for the locked-recording protection tradeoff and remaining device risks.
+GPL-3.0. Copyright (C) 2026 Randy Duquette. See [LICENSE](LICENSE).
