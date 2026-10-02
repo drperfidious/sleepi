@@ -53,9 +53,10 @@ struct WatchHome: View {
                     if gentle {
                         DatePicker("Wake by", selection: $latest, displayedComponents: .hourAndMinute)
                         Text(wakeSourceText).font(.caption2).foregroundStyle(.secondary)
-                        Stepper(value: $windowMinutes, in: Double(GentleWakeSettings.windowRange.lowerBound)...Double(GentleWakeSettings.windowRange.upperBound), step: 5) {
-                            Text("Window \(Int(windowMinutes)) min")
-                        }
+                        // A row like the others (watchOS draws a Stepper's label very large).
+                        Picker("Window", selection: $windowMinutes) {
+                            ForEach(Array(stride(from: GentleWakeSettings.windowRange.lowerBound, through: GentleWakeSettings.windowRange.upperBound, by: 5)), id: \.self) { Text("\($0) min").tag(Double($0)) }
+                        }.pickerStyle(.navigationLink)
                         Picker("Movement needed", selection: $sensitivity) {
                             ForEach(WakeSensitivity.allCases, id: \.self) { Text($0.title).tag($0) }
                         }.pickerStyle(.navigationLink)
