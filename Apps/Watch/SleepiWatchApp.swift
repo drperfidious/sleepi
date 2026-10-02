@@ -30,7 +30,12 @@ struct WatchHome: View {
                 if let start = pilot.start {
                     Text(start, style: .timer).font(.system(size: 36, weight: .light, design: .rounded)).monospacedDigit()
                     Text("Since your in-bed marker").font(.caption2).foregroundStyle(.secondary)
-                    Button(pilot.alerting ? "Dismiss gentle wake" : "End tonight") { pilot.end() }.tint(.purple)
+                    if pilot.alerting {
+                        Button("Wake Up") { pilot.wakeUp() }.tint(.purple)
+                        if pilot.canSnooze { Button("Snooze 10 min") { pilot.snooze() } }
+                    } else {
+                        Button("End tonight") { pilot.end() }.tint(.purple)
+                    }
                     if pilot.canExport { Button(pilot.exporting ? "Preparing motion…" : "Send motion to iPhone") { pilot.exportMotion() }.disabled(pilot.exporting) }
                 } else {
                     Text(pilot.summary).font(.title3)
@@ -42,27 +47,21 @@ struct WatchHome: View {
             }.padding(.horizontal, 4)
         }
         .sheet(isPresented: $showStart) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Tonight, your way").font(.headline)
+            NavigationStack {
+                Form {
                     Toggle("Gentle wake", isOn: $gentle)
                     if gentle {
-                        DatePicker("Latest tap", selection: $latest, displayedComponents: .hourAndMinute)
+                        DatePicker("Wake by", selection: $latest, displayedComponents: .hourAndMinute)
                         Text(wakeSourceText).font(.caption2).foregroundStyle(.secondary)
-                        Text("Window: \(Int(windowMinutes)) min").font(.caption)
-                        Slider(value: $windowMinutes, in: Double(GentleWakeSettings.windowRange.lowerBound)...Double(GentleWakeSettings.windowRange.upperBound), step: 5)
-                        Text("Up to 30 min: Apple runs a Watch smart alarm for at most 30 minutes.").font(.caption2).foregroundStyle(.secondary)
+                        Stepper(value: $windowMinutes, in: Double(GentleWakeSettings.windowRange.lowerBound)...Double(GentleWakeSettings.windowRange.upperBound), step: 5) {
+                            Text("Window \(Int(windowMinutes)) min")
+                        }
                         Picker("Movement needed", selection: $sensitivity) {
                             ForEach(WakeSensitivity.allCases, id: \.self) { Text($0.title).tag($0) }
-                        }
-                        Text("Experiment: taps your wrist, with no sound, once you've been restless for about a minute in the window, or at this time. A twitch or a single roll-over doesn't count. Keep your Clock alarm set.").font(.caption2)
+                        }.pickerStyle(.navigationLink)
                     }
                     Toggle("Save overnight motion", isOn: $recordMotion)
-                    if recordMotion {
-                        Text("Keeps a whole-night motion record to send to iPhone in the morning and compare with Apple's sleep. Gentle wake doesn't need it: it measures your movement on its own during the window.").font(.caption2)
-                    }
-                    Text("Sound recording must be started on your iPhone.").font(.caption2).foregroundStyle(.secondary)
-                    Button(gentle ? "Confirm time & start" : "Track only") {
+                    Button(gentle ? "Start with gentle wake" : "Start tonight") {
                         let wake = gentle ? nextOccurrence(latest) : nil
                         if gentle { pilot.updateWakeSettings(windowMinutes: Int(windowMinutes), sensitivity: sensitivity) }
                         if pilot.begin(latest: wake, recordMotion: recordMotion) {
@@ -70,7 +69,10 @@ struct WatchHome: View {
                             showStart = false
                         }
                     }.tint(.purple)
-                }
+                    if gentle {
+                        Text("A silent wrist tap once you've been restless for a minute in the window (max 30 min, Apple's limit), or at your time. Keep your Clock alarm.").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }.navigationTitle("Tonight")
             }
         }
         // Experiments are chosen fresh each night: both switches start off every time the sheet opens.
@@ -81,18 +83,23 @@ struct WatchHome: View {
             windowMinutes = Double(pilot.wakeSettings.windowMinutes); sensitivity = pilot.wakeSettings.sensitivity
             if let suggestion { latest = suggestion.date }
         }
-        .onOpenURL { url in if url.scheme == "sleepi", url.host == "tonight" { showStart = pilot.start == nil } }
-        .onAppear { if TonightRoute.consume() { showStart = pilot.start == nil } }
-        .onReceive(NotificationCenter.default.publisher(for: .sleepiOpenTonight)) { _ in if TonightRoute.consume() { showStart = pilot.start == nil } }
+        // A complication or control opens a choice, but only after catching up with the iPhone: a night already
+        // running there opens on its timer instead of the setup sheet. Nothing starts on its own.
+        .onOpenURL { url in if url.scheme == "sleepi", url.host == "tonight" { openTonight() } }
+        .onAppear { if TonightRoute.consume() { openTonight() } }
+        .onReceive(NotificationCenter.default.publisher(for: .sleepiOpenTonight)) { _ in if TonightRoute.consume() { openTonight() } }
+    }
+    private func openTonight() {
+        Task { await pilot.syncWithPhone(); showStart = pilot.start == nil }
     }
     private var wakeSourceText: String {
         let day = nextOccurrence(latest).formatted(.dateTime.weekday(.wide))
         guard let suggestion, Calendar.current.isDate(nextOccurrence(latest), equalTo: suggestion.date, toGranularity: .minute) else {
-            return "Set tonight. sleepi will suggest it again next \(day)."
+            return "Remembered for \(day)s"
         }
         switch suggestion.source {
-        case .lastPick: return "Your last \(day) time. Change it if your alarm changed."
-        case .usualWake: return "Your usual \(day) wake-up from Apple Watch. Apple's alarm time isn't readable, so check it."
+        case .lastPick: return "Your last \(day) time"
+        case .usualWake: return "Your usual \(day) wake-up. Check it matches your alarm."
         }
     }
     private func nextOccurrence(_ date: Date) -> Date {

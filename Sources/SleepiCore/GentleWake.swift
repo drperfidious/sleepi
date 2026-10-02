@@ -47,7 +47,7 @@ public struct WakeLogEpoch: Codable, Equatable, Sendable {
 
 /// One night's gentle-wake inputs and decision, written on the Watch and shared from the iPhone for tuning.
 public struct WakeLog: Codable, Identifiable, Sendable {
-    public enum Outcome: String, Codable, Sendable { case movement, deadline, endedEarly }
+    public enum Outcome: String, Codable, Sendable { case movement, deadline, endedEarly, snoozed }
     public var id: UUID
     public var windowStart: Date
     public var latest: Date
@@ -123,5 +123,22 @@ public struct WakeWindowDetector: Sendable {
         epochs.append(WakeLogEpoch(start: currentStart, activeSamples: currentActive, score: score, threshold: threshold, restless: restless))
         currentStart = currentStart.addingTimeInterval(epochLength); currentActive = 0
         return epochs.suffix(3).filter(\.restless).count >= 2
+    }
+}
+
+/// Snooze pauses the gentle-wake taps for 10 minutes without moving the planned wake time. If the wake time is less
+/// than 10 minutes away, the next taps come at the wake time. Once it has passed there's no snooze: the other alarm
+/// (Apple's Clock alarm) takes over.
+public struct SnoozePlan: Equatable, Sendable {
+    /// When the next smart-alarm session starts.
+    public var resumeAt: Date
+    /// True when the next taps come at the wake time only, without watching for restlessness first.
+    public var atWakeTimeOnly: Bool
+
+    public static func plan(now: Date, latest: Date, minutes: Double = 10) -> SnoozePlan? {
+        guard latest.timeIntervalSince(now) > 30 else { return nil }
+        let resume = now.addingTimeInterval(minutes * 60)
+        if resume < latest.addingTimeInterval(-60) { return SnoozePlan(resumeAt: resume, atWakeTimeOnly: false) }
+        return SnoozePlan(resumeAt: max(now.addingTimeInterval(5), latest.addingTimeInterval(-60)), atWakeTimeOnly: true)
     }
 }

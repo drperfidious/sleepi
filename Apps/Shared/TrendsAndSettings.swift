@@ -231,6 +231,7 @@ struct GentleWakeCard: View {
         switch log.outcome {
         case .movement: return "Tapped at \(time) after sustained movement · \(log.sensitivity.title.lowercased())"
         case .deadline: return "Tapped at \(time), your chosen time"
+        case .snoozed: return "Tapped at \(time), then snoozed"
         case .endedEarly, nil: return "Ended before a tap"
         }
     }

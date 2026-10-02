@@ -79,6 +79,8 @@ Apple (iOS/watchOS 26) already shows stages, time asleep and awake, the Sleep Sc
   6. Trends show a "vs Apple" line naming the left-out and merged nights. The corrected history is recomputed from Apple's records on each read (91 days); it isn't stored separately.
   7. A Deep sleep info line with the audit's exact wording.
 
+- **Wake Up / Snooze, complication state, Watch setup layout (after Randy's awake test):** Dismiss only ended the night on the Watch, because the iPhone got the end through a queued transfer that waits until iOS wakes sleepi. Now Wake Up, or Stop on the system alarm screen, ends the night on both, and Watch markers also go as live messages when the iPhone is reachable. Snooze (`SnoozePlan`) pauses the taps for 10 minutes by rescheduling the smart-alarm session without moving the wake time. With under 10 minutes left the next taps come at the wake time; after it there's no snooze and Apple's alarm takes over. The iPhone's application context now carries the running night, and the Watch syncs from it before choosing a screen, so a complication opens on the timer when the iPhone already started a night. The setup sheet is now a compact Form: a window Stepper, a navigation-link Movement picker that shows its title and value, and one short caption.
+
 ## Ground rules
 
 | Rule (plan) | Status | Evidence |

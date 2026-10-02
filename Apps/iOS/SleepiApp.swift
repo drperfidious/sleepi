@@ -27,7 +27,8 @@ import SleepiUI
                 return true
             } catch { return false }
         }
-        model.onSessionChanged = { session in
+        model.onSessionChanged = { [weak bridge] session in
+            bridge?.sendContext()
             Task {
                 for activity in Activity<SleepActivityAttributes>.activities { await activity.end(nil, dismissalPolicy: .immediate) }
                 if let session, ActivityAuthorizationInfo().areActivitiesEnabled {

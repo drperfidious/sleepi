@@ -16,6 +16,9 @@ import SleepiCore
     /// Window and sensitivity, kept in sync with the iPhone (the newer edit wins).
     @Published private(set) var wakeSettings = GentleWakeSettings()
     private var detector: WakeWindowDetector?
+    private var snoozing = false
+    /// Snooze is offered while the planned wake time is still ahead; after it, Apple's alarm takes over.
+    var canSnooze: Bool { alerting && state.latest.flatMap { SnoozePlan.plan(now: .now, latest: $0) } != nil }
     private var wakeLog: WakeLog?
     /// Usual wake-up per weekday from the iPhone's Apple Watch history, and the times you confirmed per weekday.
     /// Wake times only, kept on this Watch; Apple's sleep schedule itself isn't readable by apps.
@@ -117,10 +120,29 @@ import SleepiCore
         runtime?.invalidate(); runtime = nil; timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates()
         alerting = false; let end = Date.now
         if notifyPhone { sendMarker(end: end) }
-        state.markerStart = nil; state.latest = nil; state.recordEnd = end; start = nil
+        if start != nil { state.lastEndedID = state.id }
+        state.markerStart = nil; state.latest = nil; state.atWakeTimeOnly = nil; state.recordEnd = end; start = nil
         _ = save()
         status = orphanedWake ? "Night ended. If the gentle wake still taps, press Stop. Apple’s alarm is unchanged." : "Night ended. Apple’s alarm is unchanged."
         // CMSensorRecorder has no stop API. The requested capture expires by itself.
+    }
+    /// Wake Up: stops the taps and ends the night on both devices.
+    func wakeUp() {
+        end(notifyPhone: true)
+        status = "Good morning. Night ended on Watch and iPhone."
+    }
+    /// Snooze: stops the taps now and schedules the next smart-alarm session 10 minutes out, or at the wake time if
+    /// that's sooner. Needs the app open, which it is when this button is tapped.
+    func snooze() {
+        guard alerting, let latest = state.latest, let plan = SnoozePlan.plan(now: .now, latest: latest),
+              WKApplication.shared().applicationState == .active else { return }
+        wakeLog?.outcome = .snoozed
+        snoozing = true
+        runtime?.invalidate(); runtime = nil; timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates(); alerting = false
+        state.atWakeTimeOnly = plan.atWakeTimeOnly; _ = save()
+        let session = WKExtendedRuntimeSession(); session.delegate = self; runtime = session
+        session.start(at: plan.resumeAt)
+        status = plan.atWakeTimeOnly ? "Snoozed. Next tap at \(latest.formatted(date: .omitted, time: .shortened))." : "Snoozed until \(plan.resumeAt.formatted(date: .omitted, time: .shortened))."
     }
     func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
         runtime = extendedRuntimeSession
@@ -132,13 +154,13 @@ import SleepiCore
         }
         let sensitivity = state.sensitivity ?? wakeSettings.sensitivity
         let windowStart = Date.now
-        detector = WakeWindowDetector(windowStart: windowStart, latest: latest, sensitivity: sensitivity)
+        detector = state.atWakeTimeOnly == true ? nil : WakeWindowDetector(windowStart: windowStart, latest: latest, sensitivity: sensitivity)
         wakeLog = WakeLog(windowStart: windowStart, latest: latest, windowMinutes: Int((latest.timeIntervalSince(windowStart) / 60).rounded()), sensitivity: sensitivity)
         let deadline = min(latest, (extendedRuntimeSession.expirationDate ?? latest).addingTimeInterval(-5))
         timer?.invalidate()
         if deadline <= .now { alert(.deadline); return }
         timer = Timer.scheduledTimer(withTimeInterval: deadline.timeIntervalSinceNow, repeats: false) { [weak self] _ in Task { @MainActor in self?.alert(.deadline) } }
-        if motion.isAccelerometerAvailable {
+        if detector != nil, motion.isAccelerometerAvailable {
             // 10 Hz: enough to count movement per 30-second epoch; WakeWindowDetector decides when restlessness is sustained.
             motion.accelerometerUpdateInterval = 0.1
             motion.startAccelerometerUpdates(to: .main) { [weak self] data, _ in
@@ -153,8 +175,16 @@ import SleepiCore
     }
     func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) { alert(.deadline) }
     func extendedRuntimeSession(_ extendedRuntimeSession: WKExtendedRuntimeSession, didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason, error: (any Error)?) {
-        timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates(); runtime = nil; alerting = false
         finishWakeLog()
+        // A snooze already scheduled the next session; this callback is for the one it replaced.
+        if snoozing { snoozing = false; return }
+        guard extendedRuntimeSession === runtime else { return } // ended by Wake Up or End tonight
+        let wasAlerting = alerting
+        timer?.invalidate(); timer = nil; motion.stopAccelerometerUpdates(); runtime = nil; alerting = false
+        if wasAlerting, start != nil, error == nil {
+            // Stop on the system alarm screen means the same as Wake Up: the night ends on both devices.
+            wakeUp(); return
+        }
         state.latest = nil; _ = save()
         status = error == nil ? "Gentle-wake session ended. Apple’s alarm is unchanged." : "Gentle wake was interrupted. Rely on your Clock alarm."
     }
@@ -166,7 +196,7 @@ import SleepiCore
         // @Sendable keeps the handler unisolated: WatchKit may call it off the main thread, where a main-actor
         // closure would trip Swift 6's isolation check (the same crash the iPhone audio tap had).
         runtime.notifyUser(hapticType: .notification) { @Sendable _ in 10 }
-        status = "Gentle wake · tap Dismiss to stop."
+        status = "Gentle wake · Wake Up ends the night, Snooze waits 10 min."
     }
     /// Saves tonight's inputs and decision and queues them for the iPhone, where the log can be shared for tuning.
     private func finishWakeLog() {
@@ -222,7 +252,10 @@ import SleepiCore
         guard let start = state.markerStart else { return }
         var info: [String: Any] = ["schema": 1, "action": "marker", "id": state.id.uuidString, "start": start.timeIntervalSince1970]
         if let end { info["end"] = end.timeIntervalSince1970 }
+        // Queued delivery is guaranteed but can wait until iOS wakes sleepi; a live message reaches a reachable
+        // iPhone right away. The iPhone ignores whichever copy arrives second.
         WCSession.default.transferUserInfo(info)
+        if WCSession.default.isReachable { WCSession.default.sendMessage(info, replyHandler: nil, errorHandler: nil) }
     }
     @discardableResult private func save() -> Bool {
         do {
@@ -232,12 +265,37 @@ import SleepiCore
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) { receiveSummary(session.receivedApplicationContext) }
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) { receiveSummary(applicationContext) }
+    /// Brings the Watch up to date with the iPhone's latest state before choosing a screen, so a night already
+    /// running on the iPhone opens on its timer instead of the setup sheet. Nothing is started here.
+    func syncWithPhone() async {
+        guard WCSession.isSupported() else { return }
+        for _ in 0..<20 where WCSession.default.activationState != .activated { try? await Task.sleep(for: .milliseconds(100)) }
+        guard WCSession.default.activationState == .activated else { return }
+        applyPhoneNight(Self.phoneNight(WCSession.default.receivedApplicationContext))
+    }
+    private struct PhoneNight: Sendable { var known: Bool; var id: UUID?; var start: Date? }
+    nonisolated private static func phoneNight(_ value: [String: Any]) -> PhoneNight {
+        guard value["schema"] as? Int == 1, value["nightState"] as? Int == 1 else { return PhoneNight(known: false) }
+        let night = value["activeNight"] as? [String: Any]
+        return PhoneNight(known: true, id: (night?["id"] as? String).flatMap(UUID.init(uuidString:)),
+                          start: (night?["start"] as? Double).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil })
+    }
+    private func applyPhoneNight(_ night: PhoneNight) {
+        guard night.known else { return }
+        if let id = night.id, let begun = night.start {
+            if start == nil, id != state.lastEndedID { applyPhoneStart(id: id, start: begun) }
+        } else if start != nil, state.startedOnPhone == true {
+            end(notifyPhone: false); status = "Night ended on iPhone. Apple’s alarm is unchanged."
+        }
+    }
     nonisolated private func receiveSummary(_ value: [String: Any]) {
         guard value["schema"] as? Int == 1 else { return }
+        let phoneNight = Self.phoneNight(value)
         let seconds = value["asleep"] as? Double; let date = value["date"] as? Double
         let usual = Self.weekdayMinutes(value["usualWake"] as? [String: Any])
         let settings = (value["gentleWake"] as? Data).flatMap { try? JSONDecoder().decode(GentleWakeSettings.self, from: $0) }
         Task { @MainActor in
+            self.applyPhoneNight(phoneNight)
             if let settings, settings.updatedAt > self.wakeSettings.updatedAt { self.applyWakeSettings(GentleWakeSettings(windowMinutes: settings.windowMinutes, sensitivity: settings.sensitivity, updatedAt: settings.updatedAt)) }
             // A night without history (or a failed Health read) on iPhone keeps the last known times instead of erasing them.
             if !usual.isEmpty {
@@ -285,6 +343,10 @@ private struct PilotState: Codable {
     var recordEnd: Date?
     var sensitivity: WakeSensitivity?
     var startedOnPhone: Bool?
+    /// After a snooze close to the wake time, the next taps come at the wake time only.
+    var atWakeTimeOnly: Bool?
+    /// The night ended here last, so a stale iPhone state can't bring it back.
+    var lastEndedID: UUID?
 }
 
 /// CMSensorDataList only adopts NSFastEnumeration, which Swift's for-in can't use directly.

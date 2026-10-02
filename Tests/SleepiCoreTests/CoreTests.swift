@@ -231,3 +231,12 @@ private func versioned(_ a: Double, _ b: Double, _ os: String) -> SleepSample {
     #expect(summary.nights == 1); #expect(summary.leftOut == [nights[1].id]); #expect(summary.merged == [nights[0].id])
     #expect(summary.averageAsleep == 5400); #expect(summary.appleRawAverage == (7200 + 3600) / 2)
 }
+
+@Test func snoozePausesTenMinutesButNeverPastTheWakeTime() {
+    let latest = origin.addingTimeInterval(3600)
+    #expect(SnoozePlan.plan(now: origin.addingTimeInterval(1800), latest: latest) == SnoozePlan(resumeAt: origin.addingTimeInterval(2400), atWakeTimeOnly: false))
+    // Under 10 minutes left: the next taps come at the wake time.
+    #expect(SnoozePlan.plan(now: origin.addingTimeInterval(3300), latest: latest) == SnoozePlan(resumeAt: latest.addingTimeInterval(-60), atWakeTimeOnly: true))
+    // Wake time reached: no snooze, Apple's alarm takes over.
+    #expect(SnoozePlan.plan(now: latest, latest: latest) == nil)
+}

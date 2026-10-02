@@ -19,6 +19,9 @@ import SleepiUI
         let usualWake = model.usualWake
         if !usualWake.isEmpty { value["usualWake"] = Dictionary(uniqueKeysWithValues: usualWake.map { (String($0.key), $0.value) }) }
         if let settings = model.state.settings.gentleWake, let data = try? JSONEncoder().encode(settings) { value["gentleWake"] = data }
+        // The night running on iPhone right now (or none), so the Watch opens on it instead of the setup screen.
+        value["nightState"] = 1
+        if let night = model.activeSession { value["activeNight"] = ["id": night.id.uuidString, "start": night.start.timeIntervalSince1970] }
         try? WCSession.default.updateApplicationContext(value)
     }
     /// Queued, guaranteed delivery: a night started or ended here starts or ends it on the Watch, even if the Watch
@@ -51,6 +54,10 @@ import SleepiUI
         }
         guard let recording = try? JSONDecoder().decode(MotionRecording.self, from: data), recording.isValid else { return }
         Task { @MainActor in await self.model?.importMotion(recording) }
+    }
+    /// Live copies of Watch messages, sent when the iPhone is reachable so ending a night isn't left queued.
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        self.session(session, didReceiveUserInfo: message)
     }
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         if userInfo["schema"] as? Int == 1, userInfo["action"] as? String == "gentleWakeSettings",
