@@ -1,0 +1,170 @@
+{
+ "snoring": {
+  "clean": {
+   "apple_auc": 0.999,
+   "apple_recall@0.5": 1.0,
+   "apple_falsepos@0.5": 0.0056,
+   "apple_recall@1%fp": 1.0,
+   "apple_top_false_classes": [
+    [
+     "breathing",
+     4
+    ],
+    [
+     "chainsaw",
+     3
+    ],
+    [
+     "clapping",
+     1
+    ]
+   ]
+  },
+  "ac_10dB": {
+   "apple_auc": 0.997,
+   "apple_recall@0.5": 0.9,
+   "apple_falsepos@0.5": 0.0051,
+   "apple_recall@1%fp": 0.925,
+   "apple_top_false_classes": [
+    [
+     "breathing",
+     4
+    ],
+    [
+     "chainsaw",
+     2
+    ],
+    [
+     "drinking_sipping",
+     1
+    ]
+   ]
+  },
+  "ac_5dB": {
+   "apple_auc": 0.978,
+   "apple_recall@0.5": 0.85,
+   "apple_falsepos@0.5": 0.0041,
+   "apple_recall@1%fp": 0.875,
+   "apple_top_false_classes": [
+    [
+     "breathing",
+     4
+    ],
+    [
+     "drinking_sipping",
+     2
+    ],
+    [
+     "chainsaw",
+     1
+    ]
+   ]
+  },
+  "ac_0dB": {
+   "apple_auc": 0.948,
+   "apple_recall@0.5": 0.775,
+   "apple_falsepos@0.5": 0.0036,
+   "apple_recall@1%fp": 0.8,
+   "apple_top_false_classes": [
+    [
+     "breathing",
+     4
+    ],
+    [
+     "drinking_sipping",
+     2
+    ],
+    [
+     "chainsaw",
+     1
+    ]
+   ]
+  },
+  "noise_only_windows": 58,
+  "apple_noise_false_alarms@0.5": 0
+ },
+ "coughing": {
+  "clean": {
+   "apple_auc": 0.997,
+   "apple_recall@0.5": 0.9,
+   "apple_falsepos@0.5": 0.0112,
+   "apple_recall@1%fp": 0.875,
+   "apple_top_false_classes": [
+    [
+     "sneezing",
+     13
+    ],
+    [
+     "crying_baby",
+     3
+    ],
+    [
+     "laughing",
+     3
+    ]
+   ]
+  },
+  "ac_10dB": {
+   "apple_auc": 0.996,
+   "apple_recall@0.5": 0.775,
+   "apple_falsepos@0.5": 0.0056,
+   "apple_recall@1%fp": 0.85,
+   "apple_top_false_classes": [
+    [
+     "sneezing",
+     9
+    ],
+    [
+     "crying_baby",
+     2
+    ],
+    [
+     "glass_breaking",
+     0
+    ]
+   ]
+  },
+  "ac_5dB": {
+   "apple_auc": 0.993,
+   "apple_recall@0.5": 0.725,
+   "apple_falsepos@0.5": 0.0051,
+   "apple_recall@1%fp": 0.775,
+   "apple_top_false_classes": [
+    [
+     "sneezing",
+     9
+    ],
+    [
+     "crying_baby",
+     1
+    ],
+    [
+     "glass_breaking",
+     0
+    ]
+   ]
+  },
+  "ac_0dB": {
+   "apple_auc": 0.98,
+   "apple_recall@0.5": 0.5,
+   "apple_falsepos@0.5": 0.0031,
+   "apple_recall@1%fp": 0.675,
+   "apple_top_false_classes": [
+    [
+     "sneezing",
+     6
+    ],
+    [
+     "glass_breaking",
+     0
+    ],
+    [
+     "sheep",
+     0
+    ]
+   ]
+  },
+  "noise_only_windows": 58,
+  "apple_noise_false_alarms@0.5": 0
+ }
+}

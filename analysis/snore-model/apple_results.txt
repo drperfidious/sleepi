@@ -1,0 +1,12 @@
+== snoring noise-only false alarms apple: 0 of 58
+cond          AUC  rec@.5   fp@.5  rec@1%fp
+clean       0.999    1.00   0.006      1.00  [('breathing', 4), ('chainsaw', 3), ('clapping', 1)]
+ac_10dB     0.997    0.90   0.005      0.93  [('breathing', 4), ('chainsaw', 2), ('drinking_sipping', 1)]
+ac_5dB      0.978    0.85   0.004      0.88  [('breathing', 4), ('drinking_sipping', 2), ('chainsaw', 1)]
+ac_0dB      0.948    0.78   0.004      0.80  [('breathing', 4), ('drinking_sipping', 2), ('chainsaw', 1)]
+== coughing noise-only false alarms apple: 0 of 58
+cond          AUC  rec@.5   fp@.5  rec@1%fp
+clean       0.997    0.90   0.011      0.88  [('sneezing', 13), ('crying_baby', 3), ('laughing', 3)]
+ac_10dB     0.996    0.78   0.006      0.85  [('sneezing', 9), ('crying_baby', 2), ('glass_breaking', 0)]
+ac_5dB      0.993    0.72   0.005      0.78  [('sneezing', 9), ('crying_baby', 1), ('glass_breaking', 0)]
+ac_0dB      0.980    0.50   0.003      0.68  [('sneezing', 6), ('glass_breaking', 0), ('sheep', 0)]
